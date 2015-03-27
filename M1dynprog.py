@@ -53,6 +53,18 @@ def main():
         maximum = sampled[Nset[0]]
         plt.ylim(0,1.3*maximum)
         plt.show()
+
+
+def is_valid_node(table,node):
+    if len(table.shape) != 3:
+        print("ERROR: valid_node only works for 3D matrices")
+        return(0)
+    x,y,z = table.shape
+    i,j,k = node
+    if any(c < 0 for c in node) or i >= x or j >= y or k >= z:
+        return(0)
+    else:
+        return(1)
     
 def M1dynprog(M,n,W,p,significant_figures=3):
     """Returns a tuple (exact_solution, cardinality, entropy)"""

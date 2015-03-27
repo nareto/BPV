@@ -77,9 +77,6 @@ def main():
         plt.plot([xpoints[0],xpoints[0]],[0,sampled[xpoints[0]]], '--b', alpha=0.3)
         plt.plot([xpoints[1],xpoints[1]],[0,sampled[xpoints[1]]], '--b', alpha=0.3)
         
-        #plt.plot(xpoints[0],0,xpoints[0],ypoints[0],xpoints[1],0,xpoints[1],ypoints[1],'-g')
-        #plt.plot([xpoints[0], xpoints[0]], [0, ypoints[0]])
-        
         plt.plot(Nset_m1e, np.zeros(len(Nset_m1e)), 'dr')
         plt.plot(Nset_mvp, np.zeros(len(Nset_mvp)), '.b', alpha=0.7)
         

@@ -72,7 +72,7 @@ def main():
         sampled[i] = unitary_cost(p[i])
 
     Nset_mvp, card_mvp, rate_mvp = mvp.MVPeuristic(M,n,W,p,sampled)
-    Nset_m1dp, card_m1dp, rate_m1dp, entropy_m1dp = m1dp.M1dynprog(M,n,W,p,significant_figures=2)
+    Nset_m1dp, card_m1dp, rate_m1dp, entropy_m1dp = m1dp.M1dynprog(M,n,W,p,significant_figures=3)
     Nset_m1e, card_m1e, rate_m1e, entropy_m1e  = m1e.M1exactsolver(M,n,W,p)
     dp = common.check_solution(M,n,W,p, Nset_m1dp)
     if dp != 0:
@@ -95,7 +95,8 @@ def main():
         plt.plot([xpoints[0],xpoints[0]],[0,sampled[xpoints[0]]], '--b', alpha=0.3)
         plt.plot([xpoints[1],xpoints[1]],[0,sampled[xpoints[1]]], '--b', alpha=0.3)
         
-        plt.plot(Nset_m1e, np.zeros(len(Nset_m1e)), 'dr')
+        plt.plot(Nset_m1e, np.zeros(len(Nset_m1e)), 'Dr')
+        plt.plot(Nset_m1dp, np.zeros(len(Nset_m1dp)), 'og')
         plt.plot(Nset_mvp, np.zeros(len(Nset_mvp)), '.b', alpha=0.7)
         
         maximum = sampled[Nset_m1e[0]]

@@ -1,4 +1,5 @@
 #import scipy.optimize
+#from scipy import scipy.sparse.dok_matrix as dok_matrix
 import matplotlib.pyplot as plt
 import numpy as np
 import queue
@@ -9,7 +10,7 @@ def main():
     M=20  #M = |Q|, the total number of patterns
     n=6   #n = |N|, the wanted number of patterns
     W=0.2  #rate
-    plot = 0
+    plot = 1
     
     #generate p
     p = np.random.normal(10,2,M)
@@ -17,7 +18,7 @@ def main():
     
     #normalize
     p = (p/p.sum())
-    p.dump("MVPeuristica-p.dump")
+    #p.dump("MVPeuristica-p.dump")
     
     #p = np.load("MVPeuristica-p.dump")
     
@@ -25,34 +26,16 @@ def main():
     p.sort()
     p = p[::-1]
 
-    ##define our price per unitary cost function
-    #def unitary_cost(p):
-    #    num = -p*np.log(p)
-    #    den = max(1/n, p/W)
-    #    return num/den
-    #
-    #sampled = np.zeros(len(p))
-    #for i in range(len(p)):
-    #    sampled[i] = unitary_cost(p[i])
-
-    #Nset = M1dynprog(M,n,W,p)
-
     Nset, cardinality, rate, entropy = M1dynprog(M,n,W,p)
-    
+    print("cardinality: ", cardinality, "\nrate: ", rate, "\nentropy :", entropy)
     if plot:
         plt.figure(1)
         indexes = np.arange(M)
-        plt.plot(indexes,200*p,'-r', alpha=0.2)
-        plt.plot(indexes,sampled,'-b', alpha=0.5)
-        
-        xpoints = np.array([min(Nset),max(Nset)])
-        ypoints = np.array([sampled[xpoints[0]],sampled[xpoints[1]]])
-        plt.plot(xpoints,ypoints,'.g')
+        plt.plot(indexes,p,'-r', alpha=0.2)
         
         plt.plot(Nset, np.zeros(len(Nset)), '.r')
         
-        maximum = sampled[Nset[0]]
-        plt.ylim(0,1.3*maximum)
+        plt.ylim(-0.1*p[0],1.3*p[0])
         plt.show()
 
 
@@ -72,6 +55,7 @@ def M1dynprog(M,n,W,p,significant_figures=2):
     
     matrix_dim = (M,int(W*(10**significant_figures)),n)
     table = np.zeros(matrix_dim)
+    #table = dok_matrix() #dok_matrix is 2D only
     node_queue = queue.Queue()
     root = (matrix_dim[0] - 1,matrix_dim[1] - 1,matrix_dim[2] - 1)
     node_queue.put(root)
@@ -132,8 +116,11 @@ def M1dynprog(M,n,W,p,significant_figures=2):
     sum_xi = 0
     sum_pi = 0
     sum_entropy = 0
+
+    #BUG - IT DOESN'T DO WHAT YOU THINK:
     max_index = np.argmin(table[0],0)
     node = (0, max_index[0], max_index[1])
+
 
     #while 1:
     #    try:
@@ -142,14 +129,21 @@ def M1dynprog(M,n,W,p,significant_figures=2):
     #        break
     #    print(s[0] - node[0], s[1] - node[1])
     #    node = s
-        
+    #
+    
     #print(node, successor[node])
+
+    print(len(successor))
     while 1:
+        #pdb.set_trace()
         try:
             succ = successor[node]
         except KeyError:
             break
+        #print("ciccia")
+        #print(succ[0] - node[0], succ[1] - node[1]) 
         if succ[1] != node[1]:
+            #print("adding")
             Nset.append(succ[0])
             sum_xi += 1
             sum_pi += p[succ[0]]

@@ -37,11 +37,11 @@ def print_comparison_table(M,n,W,p, exact_solution, mvp_solution, m1dp_solution)
     print("|{:<20}|{:<25.12f}|".format("DynProg Error", (exact_entropy-m1dp_entropy)/exact_entropy))
 
 def main():
-    M=15  #M = |Q|, the total number of patterns
+    M=20  #M = |Q|, the total number of patterns
     n=5  #n = |N|, the wanted number of patterns
     #nsuM = 0.1
-    W=0.15  #rate
-    plot = 0
+    W=0.05  #rate
+    plot = 1
     savefig = 0
     savefig_path = "/home/renato/tesi/testo/img/"
 
@@ -75,8 +75,8 @@ def main():
     Nset_m1dp, card_m1dp, rate_m1dp, entropy_m1dp = m1dp.M1dynprog(M,n,W,p,significant_figures=3)
     Nset_m1e, card_m1e, rate_m1e, entropy_m1e  = m1e.M1exactsolver(M,n,W,p)
     dp = common.check_solution(M,n,W,p, Nset_m1dp)
-    if dp != 0:
-        exit(1)
+    #if dp != 0:
+    #    exit(1)
     print("\n sol     card    rate    entropy")
     print("mvp", card_mvp, rate_mvp)
     print("m1dp", card_m1dp, rate_m1dp, entropy_m1dp)

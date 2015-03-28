@@ -3,6 +3,43 @@ import queue
 import pdb
 import pulp
 
+def check_compatible_instances(*BPV_instances):
+    pdb.set_trace()
+    attributes = [(x.tot_patterns,x.max_cardinality,x.max_rate,x.p) for x in BPV_instances]
+    try:
+         iterator = iter(attributes)
+         first = next(iterator)
+         return all(first == rest for rest in iterator)
+    except StopIteration:
+         return True
+
+def print_comparison_table(*BPV_instances):
+    """Prints table comparing solutions"""
+
+    if check_compatible_instances(BPV_instances) == False:
+        print("ERROR: incompatible instances")
+    else:
+        columns = ("", "Cardinality (M=%d,n=%d)" % (M,n), "Rate (W=%f)" % W, "Entropy")
+        #rows = (("Euristic solution", mvp_cardinality, mvp_rate, mvp_entropy), \
+        #        ("Dynamic Programming", m1dp_cardinality, m1dp_rate, m1dp_entropy), \
+        #        ("Exact solution", exact_cardinality, exact_rate, exact_entropy))
+        rows = []
+        for instance in BPV_instances:
+            rows.append((instance.solver(),\
+                         instance.solution_cardinality(),\
+                         instance.solution_rate(),\
+                         instance.solution_entropy()))
+        
+        #print("Exact entropy: %f \n Euristic entropy: %f \n 
+        column_format = "|{:<20}|"+ "{:<25}|{:<20}|" + "{:<12}|"
+        row_format = "|{:<20}|"+ "{:<25d}|{:<20.8f}|{:<12.8f}|"
+        print(column_format.format(*columns))
+        for r in rows:
+            print(row_format.format(*r))
+        #print("|{:<20}|{:<25.12f}|".format("Euristic Error", (exact_entropy-mvp_entropy)/exact_entropy))
+        #print("|{:<20}|{:<25.12f}|".format("DynProg Error", (exact_entropy-m1dp_entropy)/exact_entropy))
+
+
 def is_extreme_node(table,node):
     if len(table.shape) != 3:
         print("ERROR: is_extreme_node only works for 3D matrices")
@@ -45,7 +82,6 @@ class BPV:
 
     def set_solver(self, solver_type):
         #print(self.tot_patterns)
-        print("pr")
         if solver_type not in self.__all_solvers__.keys():
             err = ("solver_type has to be one of"+" \"%s\""*len(solvers) % solvers.keys())
             raise RuntimeError(err)
@@ -257,7 +293,7 @@ class BPV:
         self.__solution_rate__ = 0
         self.__solution_entropy__ = 0
         
-        print(len(successor))
+        #print(len(successor))
         while 1:
             try:
                 succ = successor[node]

@@ -27,6 +27,8 @@ def main():
     solv = common.BPV("dynprog", M,n,W,p)
     solv.solve()
     solv.print_solution_summary()
-    
+
+    #common.check_compatible_instances(exact_solver,solv)
+    common.print_comparison_table(solv,exact_solver)
 if __name__ == "__main__":
     main()

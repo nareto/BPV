@@ -7,10 +7,10 @@ import pdb
 
 
 def main():
-    M=20  #M = |Q|, the total number of patterns
-    n=6   #n = |N|, the wanted number of patterns
+    M=10  #M = |Q|, the total number of patterns
+    n=3   #n = |N|, the wanted number of patterns
     W=0.2  #rate
-    plot = 1
+    plot = 0
     
     #generate p
     p = np.random.normal(10,2,M)
@@ -38,10 +38,18 @@ def main():
         plt.ylim(-0.1*p[0],1.3*p[0])
         plt.show()
 
-
+def is_extreme_node(table,node):
+    if len(table.shape) != 3:
+        print("ERROR: is_extreme_node only works for 3D matrices")
+        return(0)
+    if is_valid_node(table,node) and any(c == 0 for c in node):
+        return(0)
+    else:
+        return(1)
+        
 def is_valid_node(table,node):
     if len(table.shape) != 3:
-        print("ERROR: valid_node only works for 3D matrices")
+        print("ERROR: is_valid_node only works for 3D matrices")
         return(0)
     x,y,z = table.shape
     i,j,k = node
@@ -118,8 +126,13 @@ def M1dynprog(M,n,W,p,significant_figures=2):
     sum_entropy = 0
 
     #BUG - IT DOESN'T DO WHAT YOU THINK:
-    max_index = np.argmin(table[0],0)
-    node = (0, max_index[0], max_index[1])
+    min_value = 0
+    argmin = -1
+    for i in range(table.shape[0]):
+        #if table
+        print("i=", i, table[0][i])
+    #max_index = np.argmin(table[0],0)
+    #node = (0, max_index[0], max_index[1])
 
 
     #while 1:
@@ -140,8 +153,8 @@ def M1dynprog(M,n,W,p,significant_figures=2):
             succ = successor[node]
         except KeyError:
             break
-        #print("ciccia")
-        #print(succ[0] - node[0], succ[1] - node[1]) 
+        print("ciccia")
+        print(succ[0] - node[0], succ[1] - node[1]) 
         if succ[1] != node[1]:
             #print("adding")
             Nset.append(succ[0])

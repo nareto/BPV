@@ -81,6 +81,7 @@ def MVPeuristic(M,n,W,p,smpl_opt_func):
             break
         else:
             Nset.append(arg_max)
+            sum_xi += 1
 
     if sum_pi > W:
         sum_pi -= p[arg_max]

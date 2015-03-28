@@ -31,7 +31,7 @@ def check_solution(M,n,W,p,solution):
         print("ERROR, %d variables were one (n = %d)" % (k, n))
         return(1)
     if rate > W:
-        print("ERROR, p[i] sum up to %f > %f" % (sum_pi, W))
+        print("ERROR, p[i] sum up to %f > %f" % (rate, W))
         return(1)
     else:
         return(0)

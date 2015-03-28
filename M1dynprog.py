@@ -6,8 +6,8 @@ import pdb
 
 
 def main():
-    M=10  #M = |Q|, the total number of patterns
-    n=2   #n = |N|, the wanted number of patterns
+    M=20  #M = |Q|, the total number of patterns
+    n=6   #n = |N|, the wanted number of patterns
     W=0.2  #rate
     plot = 0
     
@@ -37,7 +37,8 @@ def main():
 
     #Nset = M1dynprog(M,n,W,p)
 
-    M1dynprog(M,n,W,p)
+    Nset, cardinality, rate, entropy = M1dynprog(M,n,W,p)
+    
     if plot:
         plt.figure(1)
         indexes = np.arange(M)
@@ -66,94 +67,97 @@ def is_valid_node(table,node):
     else:
         return(1)
     
-def M1dynprog(M,n,W,p,significant_figures=3):
+def M1dynprog(M,n,W,p,significant_figures=2):
     """Returns a tuple (exact_solution, cardinality, entropy)"""
     
-    #greatest_values = []
-    #Nset = []   #this will be the list of indexes in {1,...,M} that yield the solution
-    #sum_xi = 0  #we use this to keep track of how many patterns we're adding to Nset
-    #sum_pi = 0  #we use this to ensure that the so far chosen patterns don't exceed the maximum rate
-    #search_space = [j for j in range(M)]
-    #
-    ##pdb.set_trace()
-    #for i in range(n):
-    #    greatest_values.append(search_space[0])
-    #    for k in search_space:
-    #        if smpl_opt_func[k] > smpl_opt_func[greatest_values[i]]:# and k not in greatest_values:
-    #            greatest_values[i] = k
-    #    arg_max = greatest_values[i] if greatest_values[i] != search_space[0] else search_space[0]
-    #    search_space.remove(arg_max)
-    #    sum_pi += p[arg_max]
-    #    if sum_pi > W:
-    #        break
-    #    else:
-    #        Nset.append(arg_max)
-    #
-    #if sum_pi > W:
-    #    sum_pi -= p[arg_max]
-
     matrix_dim = (M,int(W*(10**significant_figures)),n)
-    #table = np.zeros(matrix_dim[0]*matrix_dim[1]*matrix_dim[2])
-    #table = table.reshape(matrix_dim)
     table = np.zeros(matrix_dim)
-    #print(table.shape)
     node_queue = queue.Queue()
     root = (matrix_dim[0] - 1,matrix_dim[1] - 1,matrix_dim[2] - 1)
     node_queue.put(root)
 
-    successor = {} 
+    number_of_extractions = {}
+    successor = {}
+
+    print("table size: ", table.size)
+    
     while(node_queue.empty() == False):
         node = node_queue.get(block=False)
-        i,j,k = node
+        try:
+            number_of_extractions[node] += 1
+        except KeyError:
+            number_of_extractions[node] = 1
         #print(node)
-        if i > 0:
-            parents = []
-            scaled_pi = int(p[i]*(10**significant_figures))
-            #print(i, j, k, scaled_pi)
-            if scaled_pi  > j:
-                parent = (i - 1, j, k)
+        i,j,k = node
+        parents = []
+        scaled_pi = int(p[i]*(10**significant_figures))
+        if scaled_pi  > j:
+            parent = (i - 1, j, k)
+            if is_valid_node(table,parent):
                 node_queue.put(parent)
-                #print(parent)
                 table[parent] = table[node]
-                #successor[node].append(parent)
                 parents.append(parent)
-            else:
-                #pdb.set_trace()
-                parent1 = (i - 1, j, k)
-                parent2 = (i - 1, j - scaled_pi, k - 1)
-                #print(parent1, parent2)
-                if table[node] < table[parent1]:
-                    table[parent1] = table[node]
-                    #node_queue.put(parent1)
-                    #successor[node].append(parent1)
-                    parents.append(parent1)
-                    
-                if parent2[1] >= 0 and k >= 1 and table[node] - p[i]*np.log(1/p[i]) < table[parent2]:
-                    table[parent2] = table[node] - p[i]*np.log(1/p[i])
-                    #node_queue.put(parent2)
-                    #successor[node].append(parent2)
-                    parents.append(parent2)
+        else:
+            parent1 = (i - 1, j, k)
+            parent2 = (i - 1, j - scaled_pi, k - 1)
+            #if table[node] < table[parent1] and is_valid_node(table,parent1):
+            if is_valid_node(table,parent1):
+                node_queue.put(parent1)
+                table[parent1] = table[node]
+                parents.append(parent1)
+                   
+            #if table[node] - p[i]*np.log(1/p[i]) < table[parent2] and is_valid_node(table,parent2):
+            if is_valid_node(table,parent2):
+                node_queue.put(parent2)
+                table[parent2] = table[node] - p[i]*np.log(1/p[i])
+                parents.append(parent2)
 
-            print(parents)
-            for p in parents:
-                successor[p] = (i,j,k)
+        #print(parents)
+        for par in parents:
+            successor[par] = node
             
     #print(table[0])
                     
-    #or index,value in np.ndenumerate(table):
+    #for index,value in np.ndenumerate(table):
     #   if value != 0:
     #       print(index, " :: ", value)
 
+    max = 0
+    for k,v in iter(number_of_extractions.items()):
+        if v > max:
+            argmax = k
+            max = v
+    print("maximum node extractions: ", argmax,max)
     Nset = []
     sum_xi = 0
     sum_pi = 0
+    sum_entropy = 0
     max_index = np.argmin(table[0],0)
-    max_index = (0, max_index[0], max_index[1])
-    print(successor[max_index])
-    #while:
+    node = (0, max_index[0], max_index[1])
+
+    #while 1:
+    #    try:
+    #        s = successor[node]
+    #    except KeyError:
+    #        break
+    #    print(s[0] - node[0], s[1] - node[1])
+    #    node = s
         
-    return table
-    #return (Nset,sum_xi,sum_pi)
+    #print(node, successor[node])
+    while 1:
+        try:
+            succ = successor[node]
+        except KeyError:
+            break
+        if succ[1] != node[1]:
+            Nset.append(succ[0])
+            sum_xi += 1
+            sum_pi += p[succ[0]]
+            sum_entropy += p[succ[0]]*np.log(1/p[succ[0]])
+        node = succ
+        
+    #return table
+    return (Nset,sum_xi,sum_pi,sum_entropy)
 
 if __name__ == "__main__":
     main()

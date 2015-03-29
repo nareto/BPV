@@ -53,9 +53,6 @@ def print_comparison_table(*BPV_instances):
         print(column_format.format(*columns))
         for r in rows:
             print(row_format.format(*r))
-        #print("|{:<20}|{:<25.12f}|".format("Euristic Error", (exact_entropy-mvp_entropy)/exact_entropy))
-        #print("|{:<20}|{:<25.12f}|".format("DynProg Error", (exact_entropy-m1dp_entropy)/exact_entropy))
-
 
 def is_extreme_node(table,node):
     if len(table.shape) != 3:
@@ -313,7 +310,7 @@ class BPV:
             except KeyError:
                 break
             if succ[1] != node[1]:
-                self.__solution_indexes__.append(succ[0])
+                self.__solution_indexes__.append(succ[0]-1)
                 self.__solution_cardinality__ += 1
                 self.__solution_rate__ += self.p[succ[0]-1]
                 self.__solution_entropy__ += self.p[succ[0]-1]*np.log(1/self.p[succ[0]-1])

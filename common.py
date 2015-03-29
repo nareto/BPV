@@ -1,10 +1,16 @@
 import numpy as np
 import queue
-import pdb
 import pulp
+import timeit
+import pdb
+
+def relative_error(approximated_instance, exact_instance):
+    if approximated_instance.solved() and exact_instance.solved():
+        return abs((exact_instance.solution_entropy() - approximated_instance.solution_entropy())/exact_instance.solution_entropy())
 
 def check_compatible_instances(*BPV_instances):
-    pdb.set_trace()
+    """Returns True if all the BPV instances share the same (==) inputs, False otherwise"""
+
     attributes = [(x.tot_patterns,x.max_cardinality,x.max_rate,x.p) for x in BPV_instances]
     try:
          iterator = iter(attributes)
@@ -16,23 +22,34 @@ def check_compatible_instances(*BPV_instances):
 def print_comparison_table(*BPV_instances):
     """Prints table comparing solutions"""
 
-    if check_compatible_instances(BPV_instances) == False:
+    if check_compatible_instances(*BPV_instances) == False:
         print("ERROR: incompatible instances")
     else:
-        columns = ("", "Cardinality (M=%d,n=%d)" % (M,n), "Rate (W=%f)" % W, "Entropy")
-        #rows = (("Euristic solution", mvp_cardinality, mvp_rate, mvp_entropy), \
-        #        ("Dynamic Programming", m1dp_cardinality, m1dp_rate, m1dp_entropy), \
-        #        ("Exact solution", exact_cardinality, exact_rate, exact_entropy))
+        exact_instance = None
+        for instance in BPV_instances:
+            if instance.solver() == "exact":
+                exact_instance = instance
+        tmpinst = BPV_instances[0]
+        tot_patterns,max_cardinality,max_rate = (tmpinst.tot_patterns, tmpinst.max_cardinality, tmpinst.max_rate)
+        print("tot_patterns = %d \nmax_cardinality = %d \nmax_rate = %f" % (tot_patterns,max_cardinality,max_rate))
+
+        columns = ["", "Cardinality", "Rate", "Entropy"]
+        if exact_instance != None:
+            columns.append("Relative Error")
         rows = []
         for instance in BPV_instances:
-            rows.append((instance.solver(),\
-                         instance.solution_cardinality(),\
-                         instance.solution_rate(),\
-                         instance.solution_entropy()))
-        
-        #print("Exact entropy: %f \n Euristic entropy: %f \n 
-        column_format = "|{:<20}|"+ "{:<25}|{:<20}|" + "{:<12}|"
-        row_format = "|{:<20}|"+ "{:<25d}|{:<20.8f}|{:<12.8f}|"
+            if instance.solved():
+                row = [instance.solver(), instance.solution_cardinality(), instance.solution_rate(), instance.solution_entropy()]
+                if exact_instance != None:
+                    row.append(relative_error(instance, exact_instance))
+                rows.append(row)
+
+        column_format = "|{:<20}|{:<12}|{:<12}|{:<12}|"
+        row_format = "|{:<20}|{:<12d}|{:<12.8f}|{:<12.8f}|"
+        if exact_instance != None:
+            column_format += "{:<25}"
+            row_format += "{:<25.12f}"
+
         print(column_format.format(*columns))
         for r in rows:
             print(row_format.format(*r))
@@ -70,14 +87,11 @@ class BPV:
             self.__all_solvers__ = {"exact": self.exact_solver, "euristic": self.euristic_solver, "dynprog": self.dynprog_solver}
             self.__solver_type__ = None
             self.__dynprog_significant_figures__ = dynprog_significant_figures
-            try:
-                self.set_solver(solver_type)
-            except:
-                pass
             self.tot_patterns = tot_patterns
             self.max_cardinality = max_cardinality
             self.max_rate = max_rate
             self.p = p
+            self.set_solver(solver_type)
 
 
     def set_solver(self, solver_type):
@@ -88,34 +102,35 @@ class BPV:
         else:
             self.__solver_type__ = solver_type
             if solver_type == "euristic":
-                #pdb.set_trace()
                 self.__sampled_euristic_cost__ = np.zeros(self.tot_patterns)
                 for i in range(self.tot_patterns):
                     self.__sampled_euristic_cost__[i] = self.euristic_unitary_cost(self.p[i])
                 
-    def euristic_unitary_cost(value):
+    def euristic_unitary_cost(self,value):
         num = -value*np.log(value)
         den = max(1/self.max_cardinality, value/self.max_rate)
         return num/den
 
+    def solved(self):
+        return self.__is_solved__
+    
     def solver(self):
         return self.__solver_type__
 
     def solve(self):
         ans=None
-        if self.__is_solved__ == 1:
+        if self.solved() == 1:
             ans = input("Problem is allready solved, solve again? y/N")
-        if self.__is_solved__ == 0 or ans == "y":
+        if self.solved() == 0 or ans == "y":
             if self.solver() == None:
                 print("ERROR: set solver type with set_solver")
             else:
-                #pdb.set_trace()
                 self.__all_solvers__[self.solver()]()
                 self.__is_solved__ = 1
 
 
     def print_solution_summary(self):
-        if self.__is_solved__ == 1:
+        if self.solved() == 1:
             print("Solver = ", self.solver(),\
                   "\nEntropy = ", self.__solution_entropy__, \
                   "\nCardinality = ", self.__solution_cardinality__,\
@@ -124,27 +139,27 @@ class BPV:
             print("Problem not solved")
                   
     def solution_cardinality(self):
-        if self.__is_solved__:
-            return self.__solution__cardinality__
+        if self.solved():
+            return self.__solution_cardinality__
         else:
             return None
         
     def solution_entropy(self):
-        if self.__is_solved__:
-            return self.__solution__entropy__
+        if self.solved():
+            return self.__solution_entropy__
         else:
             return None
     
     def solution_rate(self):
-        if self.__is_solved__:
-            return self.__solution__rate__
+        if self.solved():
+            return self.__solution_rate__
         else:
             return None
         
     def solution_feasibility(self):
         """Returns -1 if problem is not solved, 0 if solution is feasibile, 1 if it violates the cardinality constraint,\
         2 if it violates the rate constraint"""
-        if self.__is_solved__ == 1:
+        if self.solved() == 1:
             if self.__solution_cardinality__ > self.max_cardinality:
                 ret = 1                
             if self.__solution_rate__ > self.max_rate:
@@ -203,6 +218,7 @@ class BPV:
         self.__solution_indexes__ = []   #this will be the list of indexes in {1,...,self.tot_patterns} that yield the solution
         self.__solution_cardinality__ = 0  #we use this to keep track of how many patterns we're adding to self.__solution_indexes__
         self.__solution_rate__ = 0  #we use this to ensure that the so far chosen patterns don't exceed the maximum rate
+        self.__solution_entropy__ = 0
         search_space = [j for j in range(self.tot_patterns)]
     
         for i in range(self.max_cardinality):
@@ -210,19 +226,17 @@ class BPV:
             for k in search_space:
                 if self.__sampled_euristic_cost__[k] > self.__sampled_euristic_cost__[greatest_values[i]]:# and k not in greatest_values:
                     greatest_values[i] = k
-            arg_max = greatest_values[i] if greatest_values[i] != search_space[0] else search_space[0]
+            #TODO: why did I originally write this and not simply arg_max = greatest_values[i] ?
+            #arg_max = greatest_values[i] if greatest_values[i] != search_space[0] else search_space[0]
+            arg_max = greatest_values[i]
             search_space.remove(arg_max)
-            self.__solution_rate__ += p[arg_max]
-            if self.__solution_rate__ > self.max_rate:
+            if self.__solution_rate__ + self.p[arg_max] > self.max_rate:
                 break
             else:
+                self.__solution_rate__ += self.p[arg_max]
+                self.__solution_entropy__ += self.p[arg_max]*np.log(1/self.p[arg_max])
                 self.__solution_indexes__.append(arg_max)
                 self.__solution_cardinality__ += 1
-    
-        if self.__solution_rate__ > self.max_rate:
-            self.__solution_rate__ -= p[arg_max]
-    
-        return (self.__solution_indexes__,self.__solution_cardinality__,self.__solution_rate__)
 
     def dynprog_solver(self):
         """Calculates the solution using Dynamic Programming and Bellman's shortest path algorithm"""
@@ -272,7 +286,7 @@ class BPV:
             if v > max:
                 argmax = k
                 max = v
-        print("maximum node extractions: ", argmax,max)
+        #print("maximum node extractions: ", argmax,max)
     
         #TODO: the next for is very expensive - find a better way to obtain extreme_nodes
         extreme_nodes = []

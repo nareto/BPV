@@ -1,12 +1,13 @@
-import pdb
 import common
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import timeit
+import pdb
 
 def main():
-    M=20  #M = |Q|, the total number of patterns
-    n=5  #n = |N|, the wanted number of patterns
+    M=30  #M = |Q|, the total number of patterns
+    n=10  #n = |N|, the wanted number of patterns
     W=0.05  #rate
 
     p = np.random.exponential(1,M)
@@ -19,16 +20,17 @@ def main():
     p = p[::-1]
 
     exact_solver = common.BPV("exact",M,n,W,p)
-    #print(exact_solver.tot_patterns)
-    #exact_solver.solve()
+    ex_t = timeit.timeit(exact_solver.solve,number=1)
     #exact_solver.print_solution_summary()
     #print(exact_solver.solution_feasibility())
 
     solv = common.BPV("dynprog", M,n,W,p)
-    solv.solve()
-    solv.print_solution_summary()
-
-    #common.check_compatible_instances(exact_solver,solv)
-    common.print_comparison_table(solv,exact_solver)
+    s_t = timeit.timeit(solv.solve, number=1)
+    solv2 = common.BPV("euristic", M,n,W,p)
+    s2_t = timeit.timeit(solv2.solve,number=1)
+    print(":::TIMES:::\nExact: ", ex_t, "\nDynProg: ", s_t, "\nEuristic: ", s2_t)
+    #solv.print_solution_summary()
+    #print(exact_solver.solution_entropy(), solv.solution_entropy(), solv2.solution_entropy())
+    common.print_comparison_table(exact_solver,solv,solv2)
 if __name__ == "__main__":
     main()

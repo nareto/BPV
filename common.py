@@ -250,7 +250,8 @@ class BPV:
     
         number_of_extractions = {}
         successor = {}
-    
+        extreme_nodes = []
+        
         while(node_queue.empty() == False):
             node = node_queue.get(block=False)
             try:
@@ -279,6 +280,8 @@ class BPV:
                     parents.append(parent2)
 
             for par in parents:
+                if is_extreme_node(self.dynprog_table, par):
+                    extreme_nodes.append(par)
                 successor[par] = node
                 
         max = 0
@@ -286,13 +289,6 @@ class BPV:
             if v > max:
                 argmax = k
                 max = v
-        #print("maximum node extractions: ", argmax,max)
-    
-        #TODO: the next for is very expensive - find a better way to obtain extreme_nodes
-        extreme_nodes = []
-        for (index,value) in np.ndenumerate(self.dynprog_table):
-            if is_extreme_node(self.dynprog_table, index):
-                extreme_nodes.append(index)
     
         min_value = 0
         argmin = None

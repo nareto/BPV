@@ -241,66 +241,71 @@ class BPV:
     def dynprog_solver(self):
         """Calculates the solution using Dynamic Programming and Bellman's shortest path algorithm"""
         
-        self.dynprog_table_dim = (self.tot_patterns,int(self.max_rate*(10**self.__dynprog_significant_figures__)),self.max_cardinality)
+        self.dynprog_table_dim = (self.tot_patterns+1,int(self.max_rate*(10**self.__dynprog_significant_figures__))+1,self.max_cardinality+1)
         self.dynprog_table = np.zeros(self.dynprog_table_dim)
+        #self.dynprog_scaled_p = int(self.p[i]*(10**self.__dynprog_significant_figures__)) #can't do int() on numpy array
         #self.dynprog_table = dok_matrix() #dok_matrix is 2D only
         node_queue = queue.Queue()
-        root = (self.dynprog_table_dim[0] - 1,self.dynprog_table_dim[1] - 1,self.dynprog_table_dim[2] - 1)
+        root = (self.dynprog_table_dim[0]-1,self.dynprog_table_dim[1]-1,self.dynprog_table_dim[2]-1)
         node_queue.put(root)
-    
+        
         number_of_extractions = {}
         successor = {}
         extreme_nodes = []
+        best_node_value = 0
+        best_node_index = None
         
         while(node_queue.empty() == False):
             node = node_queue.get(block=False)
-            try:
-                number_of_extractions[node] += 1
-            except KeyError:
-                number_of_extractions[node] = 1
+            #try:
+            #    number_of_extractions[node] += 1
+            #except KeyError:
+            #    number_of_extractions[node] = 1
             i,j,k = node
             parents = []
-            scaled_pi = int(self.p[i]*(10**self.__dynprog_significant_figures__))
+            scaled_pi = int(self.p[i-1]*(10**self.__dynprog_significant_figures__))
             if scaled_pi  > j:
                 parent = (i - 1, j, k)
                 if is_valid_node(self.dynprog_table,parent):
+                    successor[parent] = node
                     self.dynprog_table[parent] = self.dynprog_table[node]
-                    extreme_nodes.append(parent)
+                    if self.dynprog_table[parent] < best_node_value:
+                        best_node_value = self.dynprog_table[parent]
+                        best_node_index = parent
             else:
                 parent1 = (i - 1, j, k)
                 parent2 = (i - 1, j - scaled_pi, k - 1)
+
                 if is_valid_node(self.dynprog_table,parent1):
+                    parents.append(parent1)
                     node_queue.put(parent1)
                     self.dynprog_table[parent1] = self.dynprog_table[node]
-                    parents.append(parent1)
+                    
                 if is_valid_node(self.dynprog_table,parent2):
-                    node_queue.put(parent2)
-                    self.dynprog_table[parent2] = self.dynprog_table[node] - self.p[i]*np.log(1/self.p[i])
                     parents.append(parent2)
+                    node_queue.put(parent2)
+                    self.dynprog_table[parent2] = self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1])
 
-            for par in parents:
-                if is_extreme_node(self.dynprog_table, par):
-                    extreme_nodes.append(par)
-                successor[par] = node
+                for p in parents:
+                    successor[p] = node
+                    if is_extreme_node(self.dynprog_table,p) and self.dynprog_table[p] < best_node_value:
+                        best_node_value = self.dynprog_table[p]
+                        best_node_index = p
+
                 
-        max = 0
-        for k,v in iter(number_of_extractions.items()):
-            if v > max:
-                argmax = k
-                max = v
+        #max = 0
+        #for k,v in iter(number_of_extractions.items()):
+        #    if v > max:
+        #        argmax = k
+        #        max = v
     
-        min_value = 0
-        argmin = None
-        for index in extreme_nodes:
-            if self.dynprog_table[index] < min_value:
-                min_value = self.dynprog_table[index]
-                argmin = index
-        node = argmin        
-    
+        node = best_node_index
+        #print("bni: ", best_node_index, "\nsucc: ",  successor[best_node_index],"\n",self.p[0], self.p[1])
         self.__solution_indexes__ = []
         self.__solution_cardinality__ = 0
         self.__solution_rate__ = 0
         self.__solution_entropy__ = 0
+        #count = 0
         
         while 1:
             try:
@@ -310,6 +315,8 @@ class BPV:
             if succ[1] != node[1]:
                 self.__solution_indexes__.append(succ[0])
                 self.__solution_cardinality__ += 1
-                self.__solution_rate__ += self.p[succ[0]]
-                self.__solution_entropy__ += self.p[succ[0]]*np.log(1/self.p[succ[0]])
+                self.__solution_rate__ += self.p[succ[0]-1]
+                self.__solution_entropy__ += self.p[succ[0]-1]*np.log(1/self.p[succ[0]-1])
             node = succ
+
+        print("-best_node_value = ", -best_node_value,"entropy = ",self.__solution_entropy__)

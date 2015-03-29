@@ -9,7 +9,7 @@ def main():
     M=20  #M = |Q|, the total number of patterns
     n=10  #n = |N|, the wanted number of patterns
     W=0.1  #rate
-    sig_fig = 3
+    sig_fig = 2
     
     p = np.random.exponential(1,M)
     

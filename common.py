@@ -264,9 +264,8 @@ class BPV:
             if scaled_pi  > j:
                 parent = (i - 1, j, k)
                 if is_valid_node(self.dynprog_table,parent):
-                    node_queue.put(parent)
                     self.dynprog_table[parent] = self.dynprog_table[node]
-                    parents.append(parent)
+                    extreme_nodes.append(parent)
             else:
                 parent1 = (i - 1, j, k)
                 parent2 = (i - 1, j - scaled_pi, k - 1)
@@ -303,7 +302,6 @@ class BPV:
         self.__solution_rate__ = 0
         self.__solution_entropy__ = 0
         
-        #print(len(successor))
         while 1:
             try:
                 succ = successor[node]
@@ -315,5 +313,3 @@ class BPV:
                 self.__solution_rate__ += self.p[succ[0]]
                 self.__solution_entropy__ += self.p[succ[0]]*np.log(1/self.p[succ[0]])
             node = succ
-            
-        #return (self.__solution_indexes__,self.__solution_cardinality__,self.__solution_rate__,self.__solution_entropy__)

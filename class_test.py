@@ -6,10 +6,11 @@ import timeit
 import pdb
 
 def main():
-    M=30  #M = |Q|, the total number of patterns
+    M=20  #M = |Q|, the total number of patterns
     n=10  #n = |N|, the wanted number of patterns
-    W=0.05  #rate
-
+    W=0.1  #rate
+    sig_fig = 3
+    
     p = np.random.exponential(1,M)
     
     #normalize
@@ -24,7 +25,7 @@ def main():
     #exact_solver.print_solution_summary()
     #print(exact_solver.solution_feasibility())
 
-    solv = common.BPV("dynprog", M,n,W,p)
+    solv = common.BPV("dynprog", M,n,W,p,dynprog_significant_figures=sig_fig)
     s_t = timeit.timeit(solv.solve, number=1)
     solv2 = common.BPV("euristic", M,n,W,p)
     s2_t = timeit.timeit(solv2.solve,number=1)

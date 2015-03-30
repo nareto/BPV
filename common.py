@@ -2,7 +2,7 @@ import numpy as np
 import queue
 import pulp
 import timeit
-import pdb
+import ipdb
 
 def relative_error(approximated_instance, exact_instance):
     if approximated_instance.solved() and exact_instance.solved():
@@ -99,6 +99,7 @@ class BPV:
             self.max_cardinality = max_cardinality
             self.max_rate = max_rate
             self.p = p
+            self.plog1onp = self.p*np.log(1/self.p)
             self.set_solver(solver_type)
 
 
@@ -190,7 +191,7 @@ class BPV:
     def calculate_entropy(self, indexes):
         entropy = 0
         for i in indexes:
-            entropy += self.p[i]*np.log(1/p[i])
+            entropy += self.plog1onp[i]#p[i]*np.log(1/p[i])
         return entropy
 
     def calculate_cardinality(self, indexes):
@@ -205,10 +206,9 @@ class BPV:
         for i in range(self.tot_patterns):
             self.__pulp_variables__.append(pulp.LpVariable("x_%d" % i,0,1,pulp.LpInteger))
         
-        plog1onp = self.p*np.log(1/self.p)
         cdotp = 0
         for i in range(self.tot_patterns):
-            cdotp += plog1onp[i]*self.__pulp_variables__[i] #linear combination to optimize
+            cdotp += self.plog1onp[i]*self.__pulp_variables__[i] #linear combination to optimize
             
         pulp_instance += cdotp, "Entropy of the solution"
         
@@ -260,7 +260,7 @@ class BPV:
                 break
             else:
                 self.__solution_rate__ += self.p[arg_max]
-                self.__solution_entropy__ += self.p[arg_max]*np.log(1/self.p[arg_max])
+                self.__solution_entropy__ += self.plog1onp[arg_max]#self.p[arg_max]*np.log(1/self.p[arg_max])
                 self.__solution_indexes__.append(arg_max)
                 self.__solution_cardinality__ += 1
 
@@ -271,8 +271,17 @@ class BPV:
         self.dynprog_table = np.zeros(self.dynprog_table_dim) #TODO: would it be better to implement the table as a dictionary?
         #self.dynprog_table = dok_matrix() #dok_matrix is 2D only
         self.dynprog_scaled_p = np.zeros(self.tot_patterns,dtype='int')
+        self.dynprog_approx_plog1onp = np.zeros(self.tot_patterns)
         for i in range(self.tot_patterns):
             self.dynprog_scaled_p[i] = int(self.p[i]*(10**self.__dynprog_significant_figures__)) #can't do int() on numpy array
+            #self.dynprog_scaled_plog1onp = self.dynprog_scaled_p*np.log(1/self.dynprog_scaled_p)
+            #self.dynprog_scaled_plog1onp[i] = int(self.plog1onp[i]*10**self.__dynprog_significant_figures__)
+            approx_pi = 10**-self.__dynprog_significant_figures__*self.dynprog_scaled_p[i]
+            if approx_pi == 0:
+                self.dynprog_approx_plog1onp[i] = 0
+            else:
+                self.dynprog_approx_plog1onp[i] = approx_pi*np.log(1/approx_pi)
+
         node_queue = queue.Queue()
         inqueue = set()
         root = (self.dynprog_table_dim[0]-1,self.dynprog_table_dim[1]-1,self.dynprog_table_dim[2]-1)
@@ -285,8 +294,10 @@ class BPV:
         
         while(node_queue.empty() == False):
             node = node_queue.get(block=False)
+            #ipdb.set_trace()
             inqueue.remove(node)
             i,j,k = node
+            #print("node = ", node, "scaled_p[i-1] = ", self.dynprog_scaled_p[i-1], "plog1onp = ", self.dynprog_approx_plog1onp[i-1])
             #scaled_pi = int(self.p[i-1]*(10**self.__dynprog_significant_figures__)) #worst case: I'm calculating the same value #nodes times = tot_patterns*max_cardinality*max_rate*10**sig_fig
             child1 = (i - 1, j, k)
             child2 = (i - 1, j - self.dynprog_scaled_p[i-1], k - 1)
@@ -295,14 +306,16 @@ class BPV:
                     predecessor[child1] = node
                     self.dynprog_table[child1] = self.dynprog_table[node]
             else:
-                if is_valid_node(self.dynprog_table,child1) and self.dynprog_table[node] < self.dynprog_table[child1]:
+                if is_valid_node(self.dynprog_table,child1) and self.dynprog_table[node] <= self.dynprog_table[child1]:
                     predecessor[child1] = node
                     self.dynprog_table[child1] = self.dynprog_table[node]
                     if child1 not in inqueue: #this is probably uneccessary, as I don't think 'child1 in queue' can ever hold
                         node_queue.put(child1)
                         inqueue.add(child1)
-                if is_valid_node(self.dynprog_table,child2) and self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1]) < self.dynprog_table[child2]:
-                    self.dynprog_table[child2] = self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1])
+                #if is_valid_node(self.dynprog_table,child2) and self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1]) < self.dynprog_table[child2]:
+                if is_valid_node(self.dynprog_table,child2) and self.dynprog_table[node] - self.dynprog_approx_plog1onp[i-1] <= self.dynprog_table[child2]:                    
+                    #self.dynprog_table[child2] = self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1])
+                    self.dynprog_table[child2] = self.dynprog_table[node] - self.dynprog_approx_plog1onp[i-1]
                     predecessor[child2] = node
                     if child2 not in inqueue:
                         node_queue.put(child2) 
@@ -310,8 +323,9 @@ class BPV:
                     if self.dynprog_table[child2] < best_node_value:
                         best_node_value = self.dynprog_table[child2]
                         best_node_index = child2
-                        self.dynprog_print_path_on_table(predecessor,best_node_index)
-                        print("--------\n")
+                        #print("scaled p[i-1] = ", self.dynprog_scaled_p[i-1])
+                        #self.dynprog_print_path_on_table(predecessor,best_node_index)
+                        #print("--------\n")
                         #print("new best_node_index = ", child2, "with value = ", self.dynprog_table[child2])
                         
 
@@ -335,6 +349,7 @@ class BPV:
         self.__solution_cardinality__ = 0
         self.__solution_rate__ = 0
         self.__solution_entropy__ = 0
+        rounded_entropy = 0
         #count = 0
         #print("--------")        
         while 1:
@@ -342,15 +357,18 @@ class BPV:
                 pred = predecessor[node]
             except KeyError:
                 break
-            if pred[1] != node[1]:
-                print("taking pattern %d with probability %f" % (pred[0]-1, self.p[pred[0]-1]))
-                self.__solution_indexes__.append(pred[0]-1)
+            if pred[2] != node[2]:
+                i = pred[0] - 1
+                #print("taking pattern %d with probability %f" % (i, self.p[i]))
+                self.__solution_indexes__.append(i)
                 self.__solution_cardinality__ += 1
-                self.__solution_rate__ += self.p[pred[0]-1]
-                self.__solution_entropy__ += self.p[pred[0]-1]*np.log(1/self.p[pred[0]-1])
+                self.__solution_rate__ += self.p[i]
+                #self.__solution_entropy__ += self.p[i]*np.log(1/self.p[i])
+                self.__solution_entropy__ += self.dynprog_approx_plog1onp[i]
+                #rounded_entropy += self.dynprog_approx_plog1onp[i]
             node = pred
 
-        print("\n-best_node_value = ", -best_node_value,"entropy = ",self.__solution_entropy__, " rate = ", self.__solution_rate__)
+        #print("\n-best_node_value = ", -best_node_value*10**-self.__dynprog_significant_figures__,"entropy = ",self.__solution_entropy__, "rounded entropy = ", rounded_entropy, " rate = ", self.__solution_rate__)
 
     def dynprog_print_path_on_table(self,predecessor_dictionary, starting_node):
         n = starting_node
@@ -358,18 +376,21 @@ class BPV:
         card = 0
         entropy = 0
         indexes = []
+        iteration = 1
         while 1:
             try:
                 pred = predecessor_dictionary[n]
+                print("node ", starting_node, "predecessor %d = " % iteration, pred)
             except KeyError:
                 break
-            if pred[1] != n[1]:
+            if pred[2] != n[2]:
                 i = pred[0] - 1
-                print("taking pattern %d with probability %f and entropy %f" % (i, self.p[i], self.p[i]*np.log(1/self.p[i])))
+                print("taking pattern %d with probability = %f, rounded entropy = %f" % (i, self.p[i], self.dynprog_approx_plog1onp[i]))
                 indexes.append(i)
                 card += 1
                 rate += self.p[i]
                 entropy += self.p[i]*np.log(1/self.p[i])
             n = pred
-        print("indexes = ", indexes, "cardinality = %d rate = %f entropy = %f value on table = %f" % (card, rate, entropy, self.dynprog_table[starting_node]))
+            iteration += 1
+        print("starting node = ", starting_node, "indexes = ", indexes, "cardinality = %d rate = %f entropy = %f value on table = %f" % (card, rate, entropy, self.dynprog_table[starting_node]))
 

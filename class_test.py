@@ -6,10 +6,10 @@ import timeit
 import pdb
 
 def main():
-    M=20  #M = |Q|, the total number of patterns
-    n=10  #n = |N|, the wanted number of patterns
-    W=0.1  #rate
-    sig_fig = 2
+    M=512  #M = |Q|, the total number of patterns
+    n=50  #n = |N|, the wanted number of patterns
+    W=0.05  #rate
+    sig_fig = 3
     
     p = np.random.exponential(1,M)
     
@@ -35,8 +35,8 @@ def main():
     #solv.print_solution_summary()
     #print(exact_solver.solution_entropy(), solv.solution_entropy(), solv2.solution_entropy())
     common.print_comparison_table(exact_solver,solv,solv2)
-    print("exact indixes = ", exact_solver.__solution_indexes__)
-    print("euristic extremes = ", min(solv2.__solution_indexes__), max(solv2.__solution_indexes__))
+    #print("exact indixes = ", exact_solver.__solution_indexes__)
+    #print("euristic extremes = ", min(solv2.__solution_indexes__), max(solv2.__solution_indexes__))
     #pdb.set_trace()
 if __name__ == "__main__":
     main()

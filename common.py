@@ -54,6 +54,17 @@ def print_comparison_table(*BPV_instances):
         for r in rows:
             print(row_format.format(*r))
 
+def is_non_increasing_vector(vector):
+    if len(vector.shape) != 1:
+        print("ERROR: is_decreasing_vector works only for 1D arrays")
+    else:
+        ret = True
+        for i in range(len(vector) - 1):
+            if vector[i+1] > vector[i]:
+                ret = False
+                break
+        return ret
+            
 def is_extreme_node(table,node):
     if len(table.shape) != 3:
         print("ERROR: is_extreme_node only works for 3D matrices")
@@ -97,7 +108,10 @@ class BPV:
             err = ("solver_type has to be one of"+" \"%s\""*len(solvers) % solvers.keys())
             raise RuntimeError(err)
         else:
-            self.__solver_type__ = solver_type
+            if solver_type == "dynprog" and not is_non_increasing_vector(self.p):
+                print("ERROR: dynamic programming requires the probability vector to be decreasing")
+            else:
+                self.__solver_type__ = solver_type
             if solver_type == "euristic":
                 self.__sampled_euristic_cost__ = np.zeros(self.tot_patterns)
                 for i in range(self.tot_patterns):
@@ -166,6 +180,21 @@ class BPV:
         else:
             ret = -1
         return ret
+
+    def calculate_rate(self, indexes):
+        rate = 0
+        for i in indexes:
+            rate += self.p[i]
+        return rate
+
+    def calculate_entropy(self, indexes):
+        entropy = 0
+        for i in indexes:
+            entropy += self.p[i]*np.log(1/p[i])
+        return entropy
+
+    def calculate_cardinality(self, indexes):
+        return len(indexes)
     
     def exact_solver(self):
         """Uses PuLP to calculate [one] exact solution"""
@@ -237,83 +266,110 @@ class BPV:
 
     def dynprog_solver(self):
         """Calculates the solution using Dynamic Programming and Bellman's shortest path algorithm"""
-        
+
         self.dynprog_table_dim = (self.tot_patterns+1,int(self.max_rate*(10**self.__dynprog_significant_figures__))+1,self.max_cardinality+1)
-        self.dynprog_table = np.zeros(self.dynprog_table_dim)
-        #self.dynprog_scaled_p = int(self.p[i]*(10**self.__dynprog_significant_figures__)) #can't do int() on numpy array
+        self.dynprog_table = np.zeros(self.dynprog_table_dim) #TODO: would it be better to implement the table as a dictionary?
         #self.dynprog_table = dok_matrix() #dok_matrix is 2D only
+        self.dynprog_scaled_p = np.zeros(self.tot_patterns,dtype='int')
+        for i in range(self.tot_patterns):
+            self.dynprog_scaled_p[i] = int(self.p[i]*(10**self.__dynprog_significant_figures__)) #can't do int() on numpy array
         node_queue = queue.Queue()
+        inqueue = set()
         root = (self.dynprog_table_dim[0]-1,self.dynprog_table_dim[1]-1,self.dynprog_table_dim[2]-1)
         node_queue.put(root)
+        inqueue.add(root)
         
-        number_of_extractions = {}
-        successor = {}
-        extreme_nodes = []
+        predecessor = {}
         best_node_value = 0
         best_node_index = None
         
         while(node_queue.empty() == False):
             node = node_queue.get(block=False)
-            #try:
-            #    number_of_extractions[node] += 1
-            #except KeyError:
-            #    number_of_extractions[node] = 1
+            inqueue.remove(node)
             i,j,k = node
-            parents = []
-            scaled_pi = int(self.p[i-1]*(10**self.__dynprog_significant_figures__))
-            if scaled_pi  > j:
-                parent = (i - 1, j, k)
-                if is_valid_node(self.dynprog_table,parent):
-                    successor[parent] = node
-                    self.dynprog_table[parent] = self.dynprog_table[node]
-                    if self.dynprog_table[parent] < best_node_value:
-                        best_node_value = self.dynprog_table[parent]
-                        best_node_index = parent
+            #scaled_pi = int(self.p[i-1]*(10**self.__dynprog_significant_figures__)) #worst case: I'm calculating the same value #nodes times = tot_patterns*max_cardinality*max_rate*10**sig_fig
+            child1 = (i - 1, j, k)
+            child2 = (i - 1, j - self.dynprog_scaled_p[i-1], k - 1)
+            if self.dynprog_scaled_p[i-1]  > j:
+                if is_valid_node(self.dynprog_table,child1):
+                    predecessor[child1] = node
+                    self.dynprog_table[child1] = self.dynprog_table[node]
             else:
-                parent1 = (i - 1, j, k)
-                parent2 = (i - 1, j - scaled_pi, k - 1)
+                if is_valid_node(self.dynprog_table,child1) and self.dynprog_table[node] < self.dynprog_table[child1]:
+                    predecessor[child1] = node
+                    self.dynprog_table[child1] = self.dynprog_table[node]
+                    if child1 not in inqueue: #this is probably uneccessary, as I don't think 'child1 in queue' can ever hold
+                        node_queue.put(child1)
+                        inqueue.add(child1)
+                if is_valid_node(self.dynprog_table,child2) and self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1]) < self.dynprog_table[child2]:
+                    self.dynprog_table[child2] = self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1])
+                    predecessor[child2] = node
+                    if child2 not in inqueue:
+                        node_queue.put(child2) 
+                        inqueue.add(child2)
+                    if self.dynprog_table[child2] < best_node_value:
+                        best_node_value = self.dynprog_table[child2]
+                        best_node_index = child2
+                        self.dynprog_print_path_on_table(predecessor,best_node_index)
+                        print("--------\n")
+                        #print("new best_node_index = ", child2, "with value = ", self.dynprog_table[child2])
+                        
 
-                if is_valid_node(self.dynprog_table,parent1):
-                    parents.append(parent1)
-                    node_queue.put(parent1)
-                    self.dynprog_table[parent1] = self.dynprog_table[node]
-                    
-                if is_valid_node(self.dynprog_table,parent2):
-                    parents.append(parent2)
-                    node_queue.put(parent2)
-                    self.dynprog_table[parent2] = self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1])
 
-                for p in parents:
-                    successor[p] = node
-                    if is_extreme_node(self.dynprog_table,p) and self.dynprog_table[p] < best_node_value:
-                        best_node_value = self.dynprog_table[p]
-                        best_node_index = p
-
+        #for i,v in np.ndenumerate(self.dynprog_table):
+        #    if v != 0:
+        #        print("index = ", i, " value = ", v)
+        
+        ##check to be sure best_node_index was calculated correctly
+        #min = 0
+        #argmin = None
+        #for (index,value) in np.ndenumerate(self.dynprog_table):
+        #    if is_extreme_node(self.dynprog_table, index) and self.dynprog_table[index] < min:
+        #        min = self.dynprog_table[index]
+        #        argmin = index
+        #print("best_node_index = ", best_node_index, "argmin = ", argmin)
                 
-        #max = 0
-        #for k,v in iter(number_of_extractions.items()):
-        #    if v > max:
-        #        argmax = k
-        #        max = v
-    
         node = best_node_index
-        #print("bni: ", best_node_index, "\nsucc: ",  successor[best_node_index],"\n",self.p[0], self.p[1])
+        #print("bni: ", best_node_index, "\nsucc: ",  predecessor[best_node_index],"\n",self.p[0], self.p[1])
         self.__solution_indexes__ = []
         self.__solution_cardinality__ = 0
         self.__solution_rate__ = 0
         self.__solution_entropy__ = 0
         #count = 0
-        
+        #print("--------")        
         while 1:
             try:
-                succ = successor[node]
+                pred = predecessor[node]
             except KeyError:
                 break
-            if succ[1] != node[1]:
-                self.__solution_indexes__.append(succ[0]-1)
+            if pred[1] != node[1]:
+                print("taking pattern %d with probability %f" % (pred[0]-1, self.p[pred[0]-1]))
+                self.__solution_indexes__.append(pred[0]-1)
                 self.__solution_cardinality__ += 1
-                self.__solution_rate__ += self.p[succ[0]-1]
-                self.__solution_entropy__ += self.p[succ[0]-1]*np.log(1/self.p[succ[0]-1])
-            node = succ
+                self.__solution_rate__ += self.p[pred[0]-1]
+                self.__solution_entropy__ += self.p[pred[0]-1]*np.log(1/self.p[pred[0]-1])
+            node = pred
 
-        print("-best_node_value = ", -best_node_value,"entropy = ",self.__solution_entropy__)
+        print("\n-best_node_value = ", -best_node_value,"entropy = ",self.__solution_entropy__, " rate = ", self.__solution_rate__)
+
+    def dynprog_print_path_on_table(self,predecessor_dictionary, starting_node):
+        n = starting_node
+        rate = 0
+        card = 0
+        entropy = 0
+        indexes = []
+        while 1:
+            try:
+                pred = predecessor_dictionary[n]
+            except KeyError:
+                break
+            if pred[1] != n[1]:
+                i = pred[0] - 1
+                print("taking pattern %d with probability %f and entropy %f" % (i, self.p[i], self.p[i]*np.log(1/self.p[i])))
+                indexes.append(i)
+                card += 1
+                rate += self.p[i]
+                entropy += self.p[i]*np.log(1/self.p[i])
+            n = pred
+        print("indexes = ", indexes, "cardinality = %d rate = %f entropy = %f value on table = %f" % (card, rate, entropy, self.dynprog_table[starting_node]))
+

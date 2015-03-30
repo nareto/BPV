@@ -19,6 +19,8 @@ def main():
     #order p decreasingly
     p.sort()
     p = p[::-1]
+    p.dump("class_test-p.dump")
+    #p = np.load("class_test-p.dump")
 
     exact_solver = common.BPV("exact",M,n,W,p)
     ex_t = timeit.timeit(exact_solver.solve,number=1)
@@ -33,5 +35,8 @@ def main():
     #solv.print_solution_summary()
     #print(exact_solver.solution_entropy(), solv.solution_entropy(), solv2.solution_entropy())
     common.print_comparison_table(exact_solver,solv,solv2)
+    print("exact indixes = ", exact_solver.__solution_indexes__)
+    print("euristic extremes = ", min(solv2.__solution_indexes__), max(solv2.__solution_indexes__))
+    #pdb.set_trace()
 if __name__ == "__main__":
     main()

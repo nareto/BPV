@@ -75,15 +75,18 @@ def is_extreme_node(table,node):
         return(0)
         
 def is_valid_node(table,node):
-    if len(table.shape) != 3:
-        print("ERROR: is_valid_node only works for 3D matrices")
+    return is_valid_node_shape(table.shape, node)
+
+def is_valid_node_shape(shape,node):
+    if len(shape) != 3:
+        print("ERROR: is_valid_node_shape only works for 3D matrices")
         return(0)
-    x,y,z = table.shape
+    x,y,z = shape
     i,j,k = node
     if any(c < 0 for c in node) or i >= x or j >= y or k >= z:
         return(0)
     else:
-        return(1)
+        return(1)    
     
 class BPV:
     def __init__(self,solver_type,tot_patterns,max_cardinality,max_rate,p,dynprog_significant_figures=3):
@@ -266,8 +269,9 @@ class BPV:
     def dynprog_solver(self):
         """Calculates the solution using Dynamic Programming and Bellman's shortest path algorithm"""
 
-        self.dynprog_table_dim = (self.tot_patterns+1,int(self.max_rate*(10**self.__dynprog_significant_figures__))+1,self.max_cardinality+1)
-        self.dynprog_table = np.zeros(self.dynprog_table_dim) #TODO: would it be better to implement the table as a dictionary?
+        #self.dynprog_table_dim = (self.tot_patterns+1,int(self.max_rate*(10**self.__dynprog_significant_figures__))+1,self.max_cardinality+1)
+        #self.dynprog_table = np.zeros(self.dynprog_table_dim) #TODO: would it be better to implement the table as a dictionary?
+        self.dynprog_table = {}
         self.dynprog_scaled_p = np.zeros(self.tot_patterns,dtype='int')
         self.dynprog_approx_plog1onp = np.zeros(self.tot_patterns)
         for i in range(self.tot_patterns):
@@ -280,7 +284,10 @@ class BPV:
 
         node_queue = queue.Queue()
         inqueue = set()
-        root = (self.dynprog_table_dim[0]-1,self.dynprog_table_dim[1]-1,self.dynprog_table_dim[2]-1)
+        root = (self.tot_patterns,int(self.max_rate*(10**self.__dynprog_significant_figures__)),self.max_cardinality)
+        table_shape = (root[0] + 1, root[1] + 1, root[2] + 1)
+        self.dynprog_table[root] = 0
+        #root = (self.dynprog_table_dim[0]-1,self.dynprog_table_dim[1]-1,self.dynprog_table_dim[2]-1)
         node_queue.put(root)
         inqueue.add(root)
         
@@ -298,19 +305,18 @@ class BPV:
             child1 = (i - 1, j, k)
             child2 = (i - 1, j - self.dynprog_scaled_p[i-1], k - 1)
             if self.dynprog_scaled_p[i-1]  > j:
-                if is_valid_node(self.dynprog_table,child1):
+                if is_valid_node_shape(table_shape,child1):
                     predecessor[child1] = node
                     self.dynprog_table[child1] = self.dynprog_table[node]
             else:
-                if is_valid_node(self.dynprog_table,child1) and self.dynprog_table[node] <= self.dynprog_table[child1]:
+                if is_valid_node_shape(table_shape,child1) and (child1 not in self.dynprog_table.keys() or self.dynprog_table[node] <= self.dynprog_table[child1]):
                     predecessor[child1] = node
                     self.dynprog_table[child1] = self.dynprog_table[node]
                     if child1 not in inqueue: #this is probably uneccessary, as I don't think 'child1 in queue' can ever hold
                         node_queue.put(child1)
                         inqueue.add(child1)
-                #if is_valid_node(self.dynprog_table,child2) and self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1]) < self.dynprog_table[child2]:
-                if is_valid_node(self.dynprog_table,child2) and self.dynprog_table[node] - self.dynprog_approx_plog1onp[i-1] <= self.dynprog_table[child2]:                    
-                    #self.dynprog_table[child2] = self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1])
+                #if is_valid_node_shape(self.dynprog_table,child2) and self.dynprog_table[node] - self.p[i-1]*np.log(1/self.p[i-1]) < self.dynprog_table[child2]:
+                if is_valid_node_shape(table_shape,child2) and (child2 not in self.dynprog_table.keys() or self.dynprog_table[node] - self.dynprog_approx_plog1onp[i-1] <= self.dynprog_table[child2]):
                     self.dynprog_table[child2] = self.dynprog_table[node] - self.dynprog_approx_plog1onp[i-1]
                     predecessor[child2] = node
                     if child2 not in inqueue:

@@ -170,14 +170,13 @@ class BPV:
         
     def solution_feasibility(self):
         """Returns -1 if problem is not solved, 0 if solution is feasibile, 1 if it violates the cardinality constraint,\
-        2 if it violates the rate constraint"""
+        2 if it violates the rate constraint, 3 if it violates both"""
+        ret = 0
         if self.solved() == 1:
             if self.__solution_cardinality__ > self.max_cardinality:
-                ret = 1                
+                ret += 1                
             if self.__solution_rate__ > self.max_rate:
-                ret = 2
-            else:
-                ret = 0
+                ret += 2
         else:
             ret = -1
         return ret
@@ -191,7 +190,7 @@ class BPV:
     def calculate_entropy(self, indexes):
         entropy = 0
         for i in indexes:
-            entropy += self.plog1onp[i]#p[i]*np.log(1/p[i])
+            entropy += self.plog1onp[i]
         return entropy
 
     def calculate_cardinality(self, indexes):
@@ -235,7 +234,7 @@ class BPV:
     def euristic_solver(self):
         """The solution self.__solution_indexes__ is defined as a level curve of self.__sampled_euristic_cost__, that is
         self.__solution_indexes__ = {x | self.__sampled_euristic_cost__(x) > c} for some c which is determined by the constraints.
-        We use the trivial method, which is O(nself.tot_patterns), to find the greatest values of f, checking
+        We use the trivial method, which is O(self.max_cardinality*self.tot_patterns), to find the greatest values of f, checking
         on every iteration for the constraints to be respected. For the i-th greatest value of
         self.__sampled_euristic_cost__ we store it's index in self.__solution_indexes__[i], i.e. self.__sampled_euristic_cost__[self.__solution_indexes__[i]] is the
         i-th greatest value of self.__sampled_euristic_cost__."""
@@ -269,13 +268,10 @@ class BPV:
 
         self.dynprog_table_dim = (self.tot_patterns+1,int(self.max_rate*(10**self.__dynprog_significant_figures__))+1,self.max_cardinality+1)
         self.dynprog_table = np.zeros(self.dynprog_table_dim) #TODO: would it be better to implement the table as a dictionary?
-        #self.dynprog_table = dok_matrix() #dok_matrix is 2D only
         self.dynprog_scaled_p = np.zeros(self.tot_patterns,dtype='int')
         self.dynprog_approx_plog1onp = np.zeros(self.tot_patterns)
         for i in range(self.tot_patterns):
             self.dynprog_scaled_p[i] = int(self.p[i]*(10**self.__dynprog_significant_figures__)) #can't do int() on numpy array
-            #self.dynprog_scaled_plog1onp = self.dynprog_scaled_p*np.log(1/self.dynprog_scaled_p)
-            #self.dynprog_scaled_plog1onp[i] = int(self.plog1onp[i]*10**self.__dynprog_significant_figures__)
             approx_pi = 10**-self.__dynprog_significant_figures__*self.dynprog_scaled_p[i]
             if approx_pi == 0:
                 self.dynprog_approx_plog1onp[i] = 0

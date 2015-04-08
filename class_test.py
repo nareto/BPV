@@ -6,22 +6,22 @@ import timeit
 import pdb
 
 def main():
-    M=10  #M = |Q|, the total number of patterns
-    n=5  #n = |N|, the wanted number of patterns
+    M=15  #M = |Q|, the total number of patterns
+    n=3  #n = |N|, the wanted number of patterns
     W=0.2  #rate
     eps = 5e-6
     #sig_fig = 2
     
-    #p = np.random.exponential(1,M)
-    #
-    ##normalize
-    #p = (p/p.sum())
-    #
-    ##order p decreasingly
-    #p.sort()
-    #p = p[::-1]
-    #p.dump("class_test-p.dump")
-    p = np.load("class_test-p.dump")
+    p = np.random.exponential(1,M)
+    
+    #normalize
+    p = (p/p.sum())
+    
+    #order p decreasingly
+    p.sort()
+    p = p[::-1]
+    p.dump("class_test-p.dump")
+    #p = np.load("class_test-p.dump")
 
     exact_solver = BPV.BPV("exact",M,n,W,p)
     ex_t = timeit.timeit(exact_solver.solve,number=1)
@@ -29,6 +29,7 @@ def main():
     #print(exact_solver.solution_feasibility())
 
     solv = BPV.BPV("dynprog", M,n,W,p)
+    solv.dynprog_table_plot = 1
     def solve_dynprog():
         solv.solve(eps)
     s_t = timeit.timeit(solve_dynprog, number=1)

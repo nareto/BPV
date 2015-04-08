@@ -1,3 +1,6 @@
+import matplotlib as mpl
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 import numpy as np
 import queue
 import pulp
@@ -67,25 +70,28 @@ def is_non_increasing_vector(vector):
                 break
         return ret
             
-def is_extreme_node(table,node):
-    if len(table.shape) != 3:
-        print("ERROR: is_extreme_node only works for 3D matrices")
+def is_extreme_cell(table,cell):
+    return is_extreme_cell_shape(table.shape, cell)
+
+def is_extreme_cell_shape(shape,cell):
+    if len(shape) != 3:
+        print("ERROR: is_extreme_cell only works for 3D matrices")
         return(0)
-    if is_valid_node(table,node) and any(c == 0 for c in node):
+    if is_valid_cell_shape(shape,cell) and any(cell[i] == shape[i] - 1 for i in [0,1,2]):
         return(1)
     else:
         return(0)
         
-def is_valid_node(table,node):
-    return is_valid_node_shape(table.shape, node)
+def is_valid_cell(table,cell):
+    return is_valid_cell_shape(table.shape, cell)
 
-def is_valid_node_shape(shape,node):
+def is_valid_cell_shape(shape,cell):
     if len(shape) != 3:
-        print("ERROR: is_valid_node_shape only works for 3D matrices")
+        print("ERROR: is_valid_cell_shape only works for 3D matrices")
         return(0)
     x,y,z = shape
-    i,j,k = node
-    if any(c < 0 for c in node) or i >= x or j >= y or k >= z:
+    i,j,k = cell
+    if any(c < 0 for c in cell) or i >= x or j >= y or k >= z:
         return(0)
     else:
         return(1)    
@@ -339,9 +345,9 @@ class BPV:
             i,j,k = cur.coords
             child1 = (i+1,j,k+1)
             child2 = (i+1, j+scaled_plog1onp[i], k+1)
-            if is_valid_node_shape(table_shape,child1):
+            if is_valid_cell_shape(table_shape,child1):
                 check_child(cur, dyn_prog_graph_node(child1), 1)
-            if is_valid_node_shape(table_shape,child2) and table[cur.coords] + self.p[i] <= self.max_rate:
+            if is_valid_cell_shape(table_shape,child2) and table[cur.coords] + self.p[i] <= self.max_rate:
                 check_child(cur, dyn_prog_graph_node(child2),2)
     
         self.__solution_indexes__ = []
@@ -369,7 +375,64 @@ class BPV:
 
         print("in table: ", intable_entropy , "  calculated (scaled): ", 1 + int(self.__solution_entropy__/scaling_factor),\
               " calculated: ", self.__solution_entropy__)
-                
+
+        if self.dynprog_table_plot == 1:
+            fig = plt.figure()
+            ax = fig.gca(projection='3d')
+            cur = self.dynprog_best_value_node
+            best_path_x = []
+            best_path_y = []
+            best_path_z = []
+            
+            while 1:
+                try:
+                    next = predecessor[cur.coords]
+                except KeyError:
+                    break
+                best_path_x.append(cur.coords[0])
+                best_path_y.append(cur.coords[1])
+                best_path_z.append(cur.coords[2])
+                if next == root:
+                    break
+                else:
+                    cur = next
+
+            ax.plot(best_path_x,best_path_y,best_path_z, 'or')
+            
+            leafs = []
+            for coords, pred in predecessor.items():
+                if is_extreme_cell_shape(table_shape,coords):
+                    leafs.append(coords)
+
+            for l in leafs:
+                cur = l
+                while 1:
+                    try:
+                        next = predecessor[cur].coords
+                    except KeyError:
+                        break
+                    x = (cur[0], next[0])
+                    y = (cur[1], next[1])
+                    z = (cur[2], next[2])
+                    if cur[1] != next[1]:
+                        ax.plot(x,y,z,'-r')
+                    else:
+                        ax.plot(x,y,z,'--g')
+                    if next == root.coords:
+                        break
+                    else:
+                        cur = next
+            #x =[2,5,4,7]
+            #y=[1,6,6,7]
+            #z=[7,2,45,6]
+            #ax.plot(x,y,z, '--r')
+            print(self.__solution_indexes__)
+            ax.set_xlabel('Indexes')
+            ax.set_ylabel('Scaled Entropy')
+            ax.set_zlabel('Cardinality')
+            plt.show()
+        
+        
     def dynprog_print_path_on_table(self,predecessor_dictionary, starting_node):
         n = starting_node
         rate = 0

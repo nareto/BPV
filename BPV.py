@@ -266,11 +266,9 @@ class BPV:
 
     def scaled_exact_solver(self,epsilon):
         scaling_factor = epsilon*self.plog1onp[-1]/self.tot_patterns
-        print("epsilon: ", epsilon, "scaling factor: ", scaling_factor)
         scaled_plog1onp = np.zeros(self.tot_patterns)
         for i in range(self.tot_patterns):
             scaled_plog1onp[i] = 1 + int(self.plog1onp[i]/scaling_factor)
-        #scaled_tot_entropy = scaled_plog1onp.sum()
 
         pulp_instance = pulp.LpProblem(" (BPV) ",pulp.LpMaximize)
         
@@ -341,7 +339,6 @@ class BPV:
         """Calculates an epsilon-solution using Dynamic Programming"""
 
         scaling_factor = epsilon*self.plog1onp[-1]/self.tot_patterns
-        print("epsilon: ", epsilon, "scaling factor: ", scaling_factor)
         scaled_plog1onp = np.zeros(self.tot_patterns)
         for i in range(self.tot_patterns):
             scaled_plog1onp[i] = 1 + int(self.plog1onp[i]/scaling_factor)
@@ -420,7 +417,6 @@ class BPV:
 
         counter = 0
         extracted_nodes = {}
-        #ipdb.set_trace()
         while heapq.nlargest(1,heap) != []: #main loop
             cur = heapq.heappop(heap)
             if cur.coords in extracted_nodes:
@@ -429,34 +425,19 @@ class BPV:
             i,j,k = cur.coords
             extracted_nodes[cur.coords] = (counter, table[cur.coords])
             intable_rate = table[cur.coords]
-            indexes, entropy, rate, cardinality = check_path(cur.coords)
-            print(cur.coords, "entropy: ", entropy, "intable_rate: ", intable_rate, \
-                  "rate: ", rate, "p[i]: ",self.p[i])
             if i + 1 < self.tot_patterns and j + reverse_cumulative_plog1onp[i] >= self.dynprog_best_value:
                 child1 = (i+1,j,k)
                 child2 = (i+1, j+scaled_plog1onp[i+1], k+1)
                 if is_valid_cell_shape(table_shape,child1):
                     add_child(cur, dyn_prog_graph_node(child1), 1)
-                if is_valid_cell_shape(table_shape,child2) and table[cur.coords] + self.p[i] <= self.max_rate:
+                if is_valid_cell_shape(table_shape,child2) and table[cur.coords] + self.p[i+1] <= self.max_rate:
                     add_child(cur, dyn_prog_graph_node(child2),2)
 
         self.__solution_indexes__ , self.__solution_entropy__,\
-            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.dynprog_best_value_node.coords,1)
+            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.dynprog_best_value_node.coords)
         self.__solution_indexes__.sort()
-
-        max_value = 0
-        max_value_coords = None
-        for coords, value in extracted_nodes.items():
-            rate = value[1]
-            value = coords[1]
-            if value > max_value:
-                max_value = value
-                max_value_coords = coords
-        
-        print("\n\n self.dynprog_best_value: ", self.dynprog_best_value_node.coords, self.dynprog_best_value,\
-              "max in extracted nodes: ", max_value_coords, max_value, "\n\n")
-                
-        print("in table: ", self.dynprog_best_value , "  calculated (scaled): ", 1 + int(self.__solution_entropy__/scaling_factor),\
+            
+        print("\nin table: ", self.dynprog_best_value , "  calculated (scaled): ", 1 + int(self.__solution_entropy__/scaling_factor),\
               " calculated: ", self.__solution_entropy__)
 
         if self.dynprog_table_plot == 1:
@@ -502,27 +483,4 @@ class BPV:
             plt.show()
         
         
-    def dynprog_print_path_on_table(self,predecessor_dictionary, starting_node):
-        n = starting_node
-        rate = 0
-        card = 0
-        entropy = 0
-        indexes = []
-        iteration = 1
-        while 1:
-            try:
-                pred = predecessor_dictionary[n]
-                print("node ", starting_node, "predecessor %d = " % iteration, pred)
-            except KeyError:
-                break
-            if pred[2] != n[2]:
-                i = pred[0] - 1
-                print("taking pattern %d with probability = %f, rounded entropy = %f" % (i, self.p[i], self.dynprog_approx_plog1onp[i]))
-                indexes.append(i)
-                card += 1
-                rate += self.p[i]
-                entropy += self.p[i]*np.log(1/self.p[i])
-            n = pred
-            iteration += 1
-        print("starting node = ", starting_node, "indexes = ", indexes, "cardinality = %d rate = %f entropy = %f value on table = %f" % (card, rate, entropy, self.dynprog_table[starting_node]))
 

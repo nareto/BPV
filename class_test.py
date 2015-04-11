@@ -6,12 +6,12 @@ import timeit
 import pdb
 
 def main():
-    M=50  #M = |Q|, the total number of patterns
+    M=20  #M = |Q|, the total number of patterns
     n=10  #n = |N|, the wanted number of patterns
-    W=0.01  #rate
+    W=0.05  #rate
     eps = 3e-2
     plot_dynprog_graph = 0
-    load = 1
+    load = 0
     if load == 1:
         p = np.load("class_test-p.dump")
     else:

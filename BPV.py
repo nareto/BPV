@@ -75,7 +75,7 @@ def is_extreme_cell(table,cell):
 
 def is_extreme_cell_shape(shape,cell):
     if len(shape) != 3:
-        print("ERROR: is_extreme_cell only works for 3D matrices")
+        print("ERROR: is_extreme_cell_shape only works for 3D matrices")
         return(0)
     if is_valid_cell_shape(shape,cell) and any(cell[i] == shape[i] - 1 for i in [0,1,2]):
         return(1)
@@ -106,12 +106,12 @@ class dyn_prog_graph_node:
     def __lt__(self, other):
         if type(other) != type(self):
             raise NotImplementedError("Can only compare two dyn_prog_graph_node")
-        if self.coords[0] == other.coords[0] and self.coords[1] == other.coords[1] and self.coords[2] != other.coords[2]:
-            raise RuntimeError("Two nodes can't differ only in the last coordinate")
-        else:
-            selfinvcoords = (self.coords[0], -self.coords[1], self.coords[2])
-            otherinvcoords = (other.coords[0], -other.coords[1], other.coords[2])
-            return (selfinvcoords < otherinvcoords) #uses lexicographic ordering
+        #if self.coords[0] == other.coords[0] and self.coords[1] == other.coords[1] and self.coords[2] != other.coords[2]:
+        #    raise RuntimeError("Two nodes can't differ only in the last coordinate")
+        #else:
+        selfinvcoords = (self.coords[0], -self.coords[1], self.coords[2])
+        otherinvcoords = (other.coords[0], -other.coords[1], other.coords[2])
+        return (selfinvcoords < otherinvcoords) #uses lexicographic ordering
             
 class BPV:
     def __init__(self,solver_type,tot_patterns,max_cardinality,max_rate,p):
@@ -120,7 +120,8 @@ class BPV:
             raise RuntimeError(err)
         else:
             self.__is_solved__ = 0
-            self.__all_solvers__ = {"exact": self.exact_solver, "euristic": self.euristic_solver, "dynprog": self.dynprog_solver}
+            self.__all_solvers__ = {"exact": self.exact_solver, "euristic": self.euristic_solver,\
+                                    "scaled_exact": self.scaled_exact_solver, "dynprog": self.dynprog_solver}
             self.__solver_type__ = None
             self.tot_patterns = tot_patterns
             self.max_cardinality = max_cardinality
@@ -166,6 +167,8 @@ class BPV:
             else:
                 if self.solver() == "dynprog":
                     self.__all_solvers__["dynprog"](epsilon)
+                elif self.solver() == "scaled_exact":
+                    self.__all_solvers__["scaled_exact"](epsilon)
                 else:
                     self.__all_solvers__[self.solver()]()
                 self.__is_solved__ = 1
@@ -261,6 +264,47 @@ class BPV:
                 self.__solution_cardinality__ += 1
                 self.__solution_rate__ += self.p[i]
 
+    def scaled_exact_solver(self,epsilon):
+        scaling_factor = epsilon*self.plog1onp[-1]/self.tot_patterns
+        print("epsilon: ", epsilon, "scaling factor: ", scaling_factor)
+        scaled_plog1onp = np.zeros(self.tot_patterns)
+        for i in range(self.tot_patterns):
+            scaled_plog1onp[i] = 1 + int(self.plog1onp[i]/scaling_factor)
+        #scaled_tot_entropy = scaled_plog1onp.sum()
+
+        pulp_instance = pulp.LpProblem(" (BPV) ",pulp.LpMaximize)
+        
+        self.__pulp_variables__ = []
+        for i in range(self.tot_patterns):
+            self.__pulp_variables__.append(pulp.LpVariable("x_%d" % i,0,1,pulp.LpInteger))
+        
+        cdotp = 0
+        for i in range(self.tot_patterns):
+            cdotp += scaled_plog1onp[i]*self.__pulp_variables__[i] #linear combination to optimize
+            
+        pulp_instance += cdotp, "Entropy of the solution"
+        
+        constraint_cardinality = 0
+        constraint_rate = 0
+        for i in range(self.tot_patterns):
+            constraint_cardinality += self.__pulp_variables__[i]
+            constraint_rate += self.p[i]*self.__pulp_variables__[i]
+        
+        pulp_instance += constraint_cardinality <= self.max_cardinality, "Cardinality constraint"
+        pulp_instance += constraint_rate <= self.max_rate, "Rate constraint"
+        
+        pulp_instance.solve()
+        self.__solution_indexes__ = []
+        self.__solution_cardinality__ = 0
+        self.__solution_rate__ = 0
+        self.__solution_entropy__ = 0
+        for i in range(self.tot_patterns):
+            if self.__pulp_variables__[i].value() != 0:
+                self.__solution_entropy__ += self.plog1onp[i]
+                self.__solution_indexes__.append(i)
+                self.__solution_cardinality__ += 1
+                self.__solution_rate__ += self.p[i]
+
     def euristic_solver(self):
         """The solution self.__solution_indexes__ is defined as a level curve of self.__sampled_euristic_cost__, that is
         self.__solution_indexes__ = {x | self.__sampled_euristic_cost__(x) > c} for some c which is determined by the constraints.
@@ -294,7 +338,7 @@ class BPV:
                 self.__solution_cardinality__ += 1
 
     def dynprog_solver(self,epsilon):
-        """Calculates the solution using Dynamic Programming and Bellman's shortest path algorithm"""
+        """Calculates an epsilon-solution using Dynamic Programming"""
 
         scaling_factor = epsilon*self.plog1onp[-1]/self.tot_patterns
         print("epsilon: ", epsilon, "scaling factor: ", scaling_factor)
@@ -303,119 +347,143 @@ class BPV:
             scaled_plog1onp[i] = 1 + int(self.plog1onp[i]/scaling_factor)
         scaled_tot_entropy = scaled_plog1onp.sum()
 
-        #pdb.set_trace()
         table = {}
         table_shape = (self.tot_patterns, scaled_tot_entropy, self.max_cardinality)
         heap = []
         heapq.heapify(heap)
-        root = dyn_prog_graph_node((0,0,0))
+        root = dyn_prog_graph_node((-1,0,0))
         heapq.heappush(heap, root)
         table[root.coords] = 0
         self.dynprog_best_value = 0
         self.dynprog_best_value_node = dyn_prog_graph_node((-1,-1,-1))
         predecessor = {}
-        
-        def check_child(parent, child, arc_type):
+        leafs = []
+
+        reverse_cumulative_plog1onp = np.zeros(self.tot_patterns)
+        reverse_cumulative_plog1onp[self.tot_patterns - 1] = scaled_plog1onp[self.tot_patterns - 1]
+        for i in np.arange(self.tot_patterns - 2, -1, -1):
+            reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + scaled_plog1onp[i]
+
+        def add_child(parent, child, arc_type):
             "Looks at child and if feasible ad.coordsds it to queue"
             if arc_type not in [1,2]:
                 raise RuntimeError("arc_type must be either 1 or 2")
-            updated = 0
-            if child.coords in predecessor.keys():
-                existent_rate = table[child.coords]
-                if arc_type == 1:
-                    candidate_new_rate = table[parent.coords]
-                elif arc_type == 2:
-                    candidate_new_rate = table[parent.coords] + self.p[child.coords[1] - 1]
-                if candidate_new_rate < existent_rate:
-                    predecessor[child.coords] = parent
-                    table[child.coords] = candidate_new_rate
-                    updated = 1
+            if arc_type == 1:
+                candidate_new_rate = table[parent.coords]
             else:
+                candidate_new_rate = table[parent.coords] + self.p[child.coords[0]]
+            add_child = 0
+            add_to_heap = 0
+            try:
+                if candidate_new_rate < table[child.coords]:
+                    add_child = 1
+            except KeyError:
+                add_child = 1
+                add_to_heap = 1
+            if add_child == 1:
                 predecessor[child.coords] = parent
-                table[child.coords] = table[parent.coords]
-                heapq.heappush(heap, child)
-                updated = 1
-                
-            if updated == 1 and child.coords[1] > self.dynprog_best_value:
+                table[child.coords] = candidate_new_rate
+                if add_to_heap == 1:
+                    heapq.heappush(heap, child)
+                if child.coords[1] > self.dynprog_best_value:
                     self.dynprog_best_value = child.coords[1]
                     self.dynprog_best_value_node = child
-        
-        while heapq.nlargest(1,heap) != []:
+                if is_extreme_cell_shape(table_shape,child.coords):
+                    leafs.append(child.coords)
+            
+        def check_path(coords, print_taken_patterns=0):
+            cur = coords
+            indexes = []
+            cardinality = 0
+            rate = 0
+            entropy = 0
+            while 1:
+                try:
+                    next = predecessor[cur].coords
+                except KeyError:
+                    break
+                if cur[1] != next[1]:
+                    i = cur[0]
+                    indexes.append(i)
+                    cardinality += 1
+                    rate += self.p[i]
+                    entropy += self.plog1onp[i]
+                    if print_taken_patterns:
+                        #print(self.p[i], " + ", end="")
+                        print("taken pattern ", i, ", p[i] = ", self.p[i], "plog1onp[i] = ", self.plog1onp[i],\
+                              "entropy = ", entropy, "rate = ", rate)
+                if next == root.coords:
+                    break
+                else:
+                    cur = next
+            return(indexes,entropy,rate,cardinality)
+
+        counter = 0
+        extracted_nodes = {}
+        #ipdb.set_trace()
+        while heapq.nlargest(1,heap) != []: #main loop
             cur = heapq.heappop(heap)
+            if cur.coords in extracted_nodes:
+                raise RuntimeError("node has been inserted more than one time in heap")
+            counter += 1
             i,j,k = cur.coords
-            child1 = (i+1,j,k+1)
-            child2 = (i+1, j+scaled_plog1onp[i], k+1)
-            if is_valid_cell_shape(table_shape,child1):
-                check_child(cur, dyn_prog_graph_node(child1), 1)
-            if is_valid_cell_shape(table_shape,child2) and table[cur.coords] + self.p[i] <= self.max_rate:
-                check_child(cur, dyn_prog_graph_node(child2),2)
-    
-        self.__solution_indexes__ = []
-        self.__solution_cardinality__ = 0
-        self.__solution_rate__ = 0
-        self.__solution_entropy__ = 0
-        intable_entropy = self.dynprog_best_value
-        cur = self.dynprog_best_value_node
+            extracted_nodes[cur.coords] = (counter, table[cur.coords])
+            intable_rate = table[cur.coords]
+            indexes, entropy, rate, cardinality = check_path(cur.coords)
+            print(cur.coords, "entropy: ", entropy, "intable_rate: ", intable_rate, \
+                  "rate: ", rate, "p[i]: ",self.p[i])
+            if i + 1 < self.tot_patterns and j + reverse_cumulative_plog1onp[i] >= self.dynprog_best_value:
+                child1 = (i+1,j,k)
+                child2 = (i+1, j+scaled_plog1onp[i+1], k+1)
+                if is_valid_cell_shape(table_shape,child1):
+                    add_child(cur, dyn_prog_graph_node(child1), 1)
+                if is_valid_cell_shape(table_shape,child2) and table[cur.coords] + self.p[i] <= self.max_rate:
+                    add_child(cur, dyn_prog_graph_node(child2),2)
 
-        while 1:
-            try:
-                next = predecessor[cur.coords]
-            except KeyError:
-                break
-            if cur.coords[1] != next.coords[1]:
-                i = cur.coords[0]
-                self.__solution_indexes__.append(i-1)
-                self.__solution_cardinality__ += 1
-                self.__solution_rate__ += self.p[i-1]
-                self.__solution_entropy__ += self.plog1onp[i-1]
-            if next == root:
-                break
-            else:
-                cur = next
+        self.__solution_indexes__ , self.__solution_entropy__,\
+            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.dynprog_best_value_node.coords,1)
+        self.__solution_indexes__.sort()
 
-        print("in table: ", intable_entropy , "  calculated (scaled): ", 1 + int(self.__solution_entropy__/scaling_factor),\
+        max_value = 0
+        max_value_coords = None
+        for coords, value in extracted_nodes.items():
+            rate = value[1]
+            value = coords[1]
+            if value > max_value:
+                max_value = value
+                max_value_coords = coords
+        
+        print("\n\n self.dynprog_best_value: ", self.dynprog_best_value_node.coords, self.dynprog_best_value,\
+              "max in extracted nodes: ", max_value_coords, max_value, "\n\n")
+                
+        print("in table: ", self.dynprog_best_value , "  calculated (scaled): ", 1 + int(self.__solution_entropy__/scaling_factor),\
               " calculated: ", self.__solution_entropy__)
 
         if self.dynprog_table_plot == 1:
             fig = plt.figure()
             ax = fig.gca(projection='3d')
-            cur = self.dynprog_best_value_node
-            best_path_x = []
-            best_path_y = []
-            best_path_z = []
+            for coords,n in extraction_order_of_nodes.items():
+                x,y,z = coords
+                ax.scatter(x,y,z,'r')
+                ax.text(x,y,z, str(n), fontsize=9)
             
-            while 1:
-                try:
-                    next = predecessor[cur.coords]
-                except KeyError:
-                    break
-                best_path_x.append(cur.coords[0])
-                best_path_y.append(cur.coords[1])
-                best_path_z.append(cur.coords[2])
-                if next == root:
-                    break
-                else:
-                    cur = next
-
-            ax.plot(best_path_x,best_path_y,best_path_z, 'or')
-            
-            leafs = []
-            for coords, pred in predecessor.items():
-                if is_extreme_cell_shape(table_shape,coords):
-                    leafs.append(coords)
-
-            for l in leafs:
+            leafs.remove(self.dynprog_best_value_node.coords)
+            for l in [self.dynprog_best_value_node.coords] + leafs:
                 cur = l
+                if cur == self.dynprog_best_value_node.coords:
+                    linestyle='-ob'
+                else:
+                    linestyle='-r'
                 while 1:
                     try:
-                        next = predecessor[cur].coords
+                        next = predecessor.pop(cur).coords
                     except KeyError:
                         break
                     x = (cur[0], next[0])
                     y = (cur[1], next[1])
                     z = (cur[2], next[2])
                     if cur[1] != next[1]:
-                        ax.plot(x,y,z,'-r')
+                        ax.plot(x,y,z,linestyle)
                     else:
                         ax.plot(x,y,z,'--g')
                     if next == root.coords:
@@ -427,6 +495,7 @@ class BPV:
             #z=[7,2,45,6]
             #ax.plot(x,y,z, '--r')
             print(self.__solution_indexes__)
+            ax.set_xlim(0,self.tot_patterns)
             ax.set_xlabel('Indexes')
             ax.set_ylabel('Scaled Entropy')
             ax.set_zlabel('Cardinality')

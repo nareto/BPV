@@ -91,7 +91,7 @@ def is_valid_cell_shape(shape,cell):
         return(0)
     x,y,z = shape
     i,j,k = cell
-    if any(c < 0 for c in cell) or i >= x or j >= y or k >= z:
+    if any(c < 0 for c in cell) or i >= x or j >= y or k > z:
         return(0)
     else:
         return(1)    
@@ -362,7 +362,7 @@ class BPV:
             reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + scaled_plog1onp[i]
 
         def add_child(parent, child, arc_type):
-            "Looks at child and if feasible ad.coordsds it to queue"
+            "Looks at child and if feasible adds it to queue"
             if arc_type not in [1,2]:
                 raise RuntimeError("arc_type must be either 1 or 2")
             if arc_type == 1:
@@ -406,9 +406,7 @@ class BPV:
                     rate += self.p[i]
                     entropy += self.plog1onp[i]
                     if print_taken_patterns:
-                        #print(self.p[i], " + ", end="")
-                        print("taken pattern ", i, ", p[i] = ", self.p[i], "plog1onp[i] = ", self.plog1onp[i],\
-                              "entropy = ", entropy, "rate = ", rate)
+                        print("taken pattern ", i, ", p[i] = ", self.p[i], "scaled plog1onp[i] = ", scaled_plog1onp[i])
                 if next == root.coords:
                     break
                 else:
@@ -434,7 +432,7 @@ class BPV:
                     add_child(cur, dyn_prog_graph_node(child2),2)
 
         self.__solution_indexes__ , self.__solution_entropy__,\
-            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.dynprog_best_value_node.coords)
+            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.dynprog_best_value_node.coords,1)
         self.__solution_indexes__.sort()
             
         print("\nin table: ", self.dynprog_best_value , "  calculated (scaled): ", 1 + int(self.__solution_entropy__/scaling_factor),\

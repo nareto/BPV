@@ -4,12 +4,13 @@ import matplotlib.pyplot as plt
 import os
 import timeit
 import pdb
+import cProfile
 
 def main():
-    M=20  #M = |Q|, the total number of patterns
-    n=10  #n = |N|, the wanted number of patterns
-    W=0.05  #rate
-    eps = 3e-2
+    M=30  #M = |Q|, the total number of patterns
+    n=5  #n = |N|, the wanted number of patterns
+    W=0.1  #rate
+    eps = 3
     plot_dynprog_graph = 0
     load = 0
     if load == 1:
@@ -49,9 +50,7 @@ def main():
     BPV.print_comparison_table(exact_solver,s_ex_solver,solv)
     #print("exact indixes = ", exact_solver.__solution_indexes__)
     #print("euristic extremes = ", min(solv2.__solution_indexes__), max(solv2.__solution_indexes__))
-    print("dynprog indixes = ", solv.__solution_indexes__)
-    print("scaled exact indixes = ", s_ex_solver.__solution_indexes__)
-    print("dynprog entopy = ", solv.__solution_entropy__)
-    print("scaled_exact entopy = ", s_ex_solver.__solution_entropy__)
+    #print("dynprog indixes = ", solv.__solution_indexes__)
+    #print("scaled exact indixes = ", s_ex_solver.__solution_indexes__)
 if __name__ == "__main__":
-    main()
+    cProfile.run('main()')

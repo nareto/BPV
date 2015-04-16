@@ -7,14 +7,15 @@ import pdb
 import cProfile
 
 def main():
-    M=30  #M = |Q|, the total number of patterns
-    n=5  #n = |N|, the wanted number of patterns
+    M=100  #M = |Q|, the total number of patterns
+    n=10  #n = |N|, the wanted number of patterns
     W=0.1  #rate
-    eps = 3
+    eps = 1
     plot_dynprog_graph = 0
     load = 0
     if load == 1:
-        p = np.load("class_test-p.dump")
+        #p = np.load("class_test-p.dump")
+        p = np.load("bug1-p30.dump") #TODO
     else:
         p = np.random.exponential(1,M)
         
@@ -50,7 +51,8 @@ def main():
     BPV.print_comparison_table(exact_solver,s_ex_solver,solv)
     #print("exact indixes = ", exact_solver.__solution_indexes__)
     #print("euristic extremes = ", min(solv2.__solution_indexes__), max(solv2.__solution_indexes__))
-    #print("dynprog indixes = ", solv.__solution_indexes__)
-    #print("scaled exact indixes = ", s_ex_solver.__solution_indexes__)
+    print("dynprog indixes = ", solv.__solution_indexes__)
+    print("scaled exact indixes = ", s_ex_solver.__solution_indexes__)
 if __name__ == "__main__":
-    cProfile.run('main()')
+    #cProfile.run('main()',sort=1)
+    main()

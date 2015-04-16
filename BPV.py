@@ -70,49 +70,26 @@ def is_non_increasing_vector(vector):
                 break
         return ret
             
-def is_extreme_cell(table,cell):
-    return is_extreme_cell_shape(table.shape, cell)
 
-def is_extreme_cell_shape(shape,cell):
-    if len(shape) != 3:
-        print("ERROR: is_extreme_cell_shape only works for 3D matrices")
-        return(0)
-    if is_valid_cell_shape(shape,cell) and any(cell[i] == shape[i] - 1 for i in [0,1,2]):
-        return(1)
-    else:
-        return(0)
-        
-def is_valid_cell(table,cell):
-    return is_valid_cell_shape(table.shape, cell)
 
-def is_valid_cell_shape(shape,cell):
-    if len(shape) != 3:
-        print("ERROR: is_valid_cell_shape only works for 3D matrices")
-        return(0)
-    x,y,z = shape
-    i,j,k = cell
-    if any(c < 0 for c in cell) or i >= x or j >= y or k > z:
-        return(0)
-    else:
-        return(1)    
-
-class dyn_prog_graph_node:
-    def __init__(self,coords):
-        self.coords = tuple(coords)
-
-    def __eq__(self, other):
-        return (self.coords == other.coords)
-    
-    def __lt__(self, other):
-        if type(other) != type(self):
-            raise NotImplementedError("Can only compare two dyn_prog_graph_node")
-        #if self.coords[0] == other.coords[0] and self.coords[1] == other.coords[1] and self.coords[2] != other.coords[2]:
-        #    raise RuntimeError("Two nodes can't differ only in the last coordinate")
-        #else:
-        selfinvcoords = (self.coords[0], -self.coords[1], self.coords[2])
-        otherinvcoords = (other.coords[0], -other.coords[1], other.coords[2])
-        return (selfinvcoords < otherinvcoords) #uses lexicographic ordering
-            
+#
+#class dyn_prog_graph_node:
+#    def __init__(self,coords):
+#        self.coords = tuple(coords)
+#
+#    def __eq__(self, other):
+#        return (self.coords == other.coords)
+#    
+#    def __lt__(self, other):
+#        if type(other) != type(self):
+#            raise NotImplementedError("Can only compare two dyn_prog_graph_node")
+#        #if self.coords[0] == other.coords[0] and self.coords[1] == other.coords[1] and self.coords[2] != other.coords[2]:
+#        #    raise RuntimeError("Two nodes can't differ only in the last coordinate")
+#        #else:
+#        selfinvcoords = (self.coords[0], -self.coords[1], self.coords[2])
+#        otherinvcoords = (other.coords[0], -other.coords[1], other.coords[2])
+#        return (selfinvcoords < otherinvcoords) #uses lexicographic ordering
+#            
 class BPV:
     def __init__(self,solver_type,tot_patterns,max_cardinality,max_rate,p):
         if len(p) != tot_patterns:
@@ -338,21 +315,22 @@ class BPV:
     def dynprog_solver(self,epsilon):
         """Calculates an epsilon-solution using Dynamic Programming"""
 
-        scaling_factor = epsilon*self.plog1onp[-1]/self.tot_patterns
-        scaled_plog1onp = np.zeros(self.tot_patterns)
-        for i in range(self.tot_patterns):
-            scaled_plog1onp[i] = 1 + int(self.plog1onp[i]/scaling_factor)
+        scaling_factor = 1#epsilon*self.plog1onp[-1]/self.tot_patterns
+        scaled_plog1onp = self.plog1onp
+        #scaled_plog1onp = np.zeros(self.tot_patterns)
+        #for i in range(self.tot_patterns):
+        #    scaled_plog1onp[i] = 1 + int(self.plog1onp[i]/scaling_factor)
         scaled_tot_entropy = scaled_plog1onp.sum()
 
         table = {}
         table_shape = (self.tot_patterns, scaled_tot_entropy, self.max_cardinality)
         heap = []
         heapq.heapify(heap)
-        root = dyn_prog_graph_node((-1,0,0))
+        root = (-1,0,0)
         heapq.heappush(heap, root)
-        table[root.coords] = 0
+        table[root] = 0
         self.dynprog_best_value = 0
-        self.dynprog_best_value_node = dyn_prog_graph_node((-1,-1,-1))
+        self.dynprog_best_value_node = (-1,-1,-1)
         predecessor = {}
         leafs = []
 
@@ -361,32 +339,47 @@ class BPV:
         for i in np.arange(self.tot_patterns - 2, -1, -1):
             reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + scaled_plog1onp[i]
 
+
+        #table_shape = (self.tot_patterns, scaled_tot_entropy, self.max_cardinality)
+        def is_valid_cell(cell):
+            i,j,k = cell
+            if i >= table_shape[0] or k > table_shape[2]:
+                return(0)
+            else:
+                return(1)    
+
+        def is_boundary_cell(cell):
+            if is_valid_cell(cell) and any(cell[i] == table_shape[i] - 1 for i in [0,1,2]):
+                return(1)
+            else:
+                return(0)
+            
         def add_child(parent, child, arc_type):
             "Looks at child and if feasible adds it to queue"
             if arc_type not in [1,2]:
                 raise RuntimeError("arc_type must be either 1 or 2")
             if arc_type == 1:
-                candidate_new_rate = table[parent.coords]
+                candidate_new_rate = table[parent]
             else:
-                candidate_new_rate = table[parent.coords] + self.p[child.coords[0]]
+                candidate_new_rate = table[parent] + self.p[child[0]]
             add_child = 0
             add_to_heap = 0
             try:
-                if candidate_new_rate < table[child.coords]:
+                if candidate_new_rate < table[child]:
                     add_child = 1
             except KeyError:
                 add_child = 1
                 add_to_heap = 1
             if add_child == 1:
-                predecessor[child.coords] = parent
-                table[child.coords] = candidate_new_rate
+                predecessor[child] = parent
+                table[child] = candidate_new_rate
                 if add_to_heap == 1:
                     heapq.heappush(heap, child)
-                if child.coords[1] > self.dynprog_best_value:
-                    self.dynprog_best_value = child.coords[1]
+                if child[1] > self.dynprog_best_value:
+                    self.dynprog_best_value = child[1]
                     self.dynprog_best_value_node = child
-                if is_extreme_cell_shape(table_shape,child.coords):
-                    leafs.append(child.coords)
+                if is_boundary_cell(child):
+                    leafs.append(child)
             
         def check_path(coords, print_taken_patterns=0):
             cur = coords
@@ -396,7 +389,7 @@ class BPV:
             entropy = 0
             while 1:
                 try:
-                    next = predecessor[cur].coords
+                    next = predecessor[cur]
                 except KeyError:
                     break
                 if cur[1] != next[1]:
@@ -407,7 +400,7 @@ class BPV:
                     entropy += self.plog1onp[i]
                     if print_taken_patterns:
                         print("taken pattern ", i, ", p[i] = ", self.p[i], "scaled plog1onp[i] = ", scaled_plog1onp[i])
-                if next == root.coords:
+                if next == root:
                     break
                 else:
                     cur = next
@@ -417,22 +410,22 @@ class BPV:
         extracted_nodes = {}
         while heapq.nlargest(1,heap) != []: #main loop
             cur = heapq.heappop(heap)
-            if cur.coords in extracted_nodes:
+            if cur in extracted_nodes:
                 raise RuntimeError("node has been inserted more than one time in heap")
             counter += 1
-            i,j,k = cur.coords
-            extracted_nodes[cur.coords] = (counter, table[cur.coords])
-            intable_rate = table[cur.coords]
+            i,j,k = cur
+            extracted_nodes[cur] = (counter, table[cur])
+            intable_rate = table[cur]
             if i + 1 < self.tot_patterns and j + reverse_cumulative_plog1onp[i] >= self.dynprog_best_value:
                 child1 = (i+1,j,k)
                 child2 = (i+1, j+scaled_plog1onp[i+1], k+1)
-                if is_valid_cell_shape(table_shape,child1):
-                    add_child(cur, dyn_prog_graph_node(child1), 1)
-                if is_valid_cell_shape(table_shape,child2) and table[cur.coords] + self.p[i+1] <= self.max_rate:
-                    add_child(cur, dyn_prog_graph_node(child2),2)
+                if is_valid_cell(child1):
+                    add_child(cur, (child1), 1)
+                if is_valid_cell(child2) and table[cur] + self.p[i+1] <= self.max_rate:
+                    add_child(cur, (child2),2)
 
         self.__solution_indexes__ , self.__solution_entropy__,\
-            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.dynprog_best_value_node.coords,1)
+            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.dynprog_best_value_node,1)
         self.__solution_indexes__.sort()
             
         print("\nin table: ", self.dynprog_best_value , "  calculated (scaled): ", 1 + int(self.__solution_entropy__/scaling_factor),\
@@ -446,16 +439,16 @@ class BPV:
                 ax.scatter(x,y,z,'r')
                 ax.text(x,y,z, str(n), fontsize=9)
             
-            leafs.remove(self.dynprog_best_value_node.coords)
-            for l in [self.dynprog_best_value_node.coords] + leafs:
+            leafs.remove(self.dynprog_best_value_node)
+            for l in [self.dynprog_best_value_node] + leafs:
                 cur = l
-                if cur == self.dynprog_best_value_node.coords:
+                if cur == self.dynprog_best_value_node:
                     linestyle='-ob'
                 else:
                     linestyle='-r'
                 while 1:
                     try:
-                        next = predecessor.pop(cur).coords
+                        next = predecessor.pop(cur)
                     except KeyError:
                         break
                     x = (cur[0], next[0])
@@ -465,7 +458,7 @@ class BPV:
                         ax.plot(x,y,z,linestyle)
                     else:
                         ax.plot(x,y,z,'--g')
-                    if next == root.coords:
+                    if next == root:
                         break
                     else:
                         cur = next

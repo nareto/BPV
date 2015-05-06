@@ -18,7 +18,7 @@ def main():
     card_range = np.arange(min_card, max_card, (max_card-min_card)/card_nsteps)
     rate_range = np.arange(min_rate, max_rate, (max_rate-min_rate)/rate_nsteps)
     load = 1 #wether to load or calculate the graph data
-    save_and_overwrite = 1 #wether to save (overwriting) the calculated graph data
+    save_and_overwrite = 0 #wether to save (overwriting) the calculated graph data
     
     if load:
         p = np.load("BPV-entropies_plot-p.dump")

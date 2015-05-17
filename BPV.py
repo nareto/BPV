@@ -514,12 +514,12 @@ class BPV:
             
         def add_child(parent, child, arc_type):
             "Looks at child and if feasible adds it to queue"
-            if arc_type not in [1,2]:
-                raise RuntimeError("arc_type must be either 1 or 2")
             if arc_type == 1:
                 candidate_new_entropy = alpha[parent]
-            else:
+            elif arc_type == 2:
                 candidate_new_entropy = alpha[parent] + self.plog1onp[child[0]]
+            else:
+                raise RuntimeError("arc_type must be either 1 or 2")
             add_child = 0
             add_to_next_visitlist = 0
             try:

@@ -7,7 +7,7 @@ import pdb
 import cProfile
 
 def main():
-    n=50  #n = |Q|, the total number of patterns
+    n=20  #n = |Q|, the total number of patterns
     N=10  #N = |N|, the wanted number of patterns
     W=0.1  #rate
     eps = 1

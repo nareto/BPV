@@ -1,45 +1,65 @@
+#!/usr/bin/env python3
+
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
 from PIL import Image
 import numpy as np
+import sys, os
+import ipdb
 
-plot_histograms = 0
-im = Image.open("img/stock1.jpg")
-#im = Image.open("img/rgbspirals.jpg")
-w, h = im.size
-npixels = w*h
-out = Image.new("L", im.size)
-out_data = []
+def usage():
+    print("USAGE: {0} directory outdirectory\
+    \ndirectory and outdirectory must be different".format(sys.argv[0]))
 
-data = list(im.getdata())
-average_lum = 0
-for pixel in data:
-    r,g,b = pixel
-    lum = 0.2989*r + 0.5870*g + 0.1140*b
-    out_data.append(lum)
-    average_lum += lum
+def digitize_image(filepath):
+    im = Image.open(filepath)
+    if im.mode != "RGB":
+        raise RuntimeError("Image {0} is not RGB".format(filepath))
+    out = Image.new("L", im.size)
+    w, h = im.size
+    npixels = w*h
+    out_data = []
 
-average_lum *= 1/npixels
+    data = list(im.getdata())
+    average_lum = 0
+    for pixel in data:
+        r,g,b = pixel
+        lum = 0.2989*r + 0.5870*g + 0.1140*b
+        out_data.append(lum)
+        average_lum += lum
+    average_lum *= 1/npixels
+    for i in range(len(out_data)):
+        greyvalue = out_data[i]
+        if greyvalue > average_lum:
+            out_data[i] = 0
+        else:
+            out_data[i] = 255
+    out.putdata(out_data)
+    return(out)
 
-for i in range(len(out_data)):
-    greyvalue = out_data[i]
-    if greyvalue > average_lum:
-        out_data[i] = 0
+def main(dir,outdir):
+    os.mkdir(outdir)
+    for root,dirs,files in os.walk(dir):
+        for d in dirs:
+            new_dir = outdir+'/'+root.lstrip(dir).lstrip('/') + '/' +d
+            os.mkdir(new_dir)
+        if len(files) > 0:
+            for f in files:
+                if f[-4:] == '.jpg':
+                    original_image = root.rstrip('/')+'/'+f
+                    #digitized_image = outdir+('/'+root.lstrip(dir).strip('/')).strip('/') + '/' + f
+                    digitized_image = outdir+'/'+root.lstrip(dir).lstrip('/') + '/' + f
+                    try:
+                        out = digitize_image(original_image)
+                        out.save(digitized_image)
+                    except:
+                        pass
+
+if __name__ == '__main__':
+    if len(sys.argv) != 3  or sys.argv[1] == sys.argv[2]:
+        usage()
+        exit(1)
     else:
-        out_data[i] = 255
-        
-print(average_lum, average_lum/256)
+        main(sys.argv[1].rstrip('/'),sys.argv[2].rstrip('/'))
 
-out.putdata(out_data)
-out.save("img/out.jpg")
-if plot_histograms:
-    hist = im.histogram()
-    r = np.array(hist[:256])
-    g = np.array(hist[256:256*2])
-    b = np.array(hist[256*2:256*3])
-    lumarray = 0.2989*r + 0.5870*g + 0.1140*b
-
-    index = np.arange(0, 256, 1)
-    plt.plot(index, r, 'r', index, g, 'g', index, b, 'b', index, lumarray, 'k')
-    plt.show()

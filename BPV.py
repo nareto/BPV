@@ -7,6 +7,19 @@ import heapq
 import ipdb
 import pdb
 
+def read_distribution_csv(file):
+    f = open(file,'r')
+    lines = f.readlines()
+    n = len(lines)
+    p = np.zeros(n)
+    i = 0
+    for l in lines:
+        binary_code, probability = l.split(',')
+        p[i] = float(probability)
+        i += 1
+    f.close()
+    return(p)
+
 def relative_error(approximated_instance, exact_instance):
     if approximated_instance.solved() and exact_instance.solved():
         return abs((exact_instance.solution_entropy() - approximated_instance.solution_entropy())/exact_instance.solution_entropy())

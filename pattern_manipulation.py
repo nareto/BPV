@@ -1,8 +1,15 @@
+#!/usr/bin/env python3
+
 from PIL import Image
 import numpy as np
 import sys, os
 import ipdb
 
+def usage():
+    print("USAGE: {0} command args\
+    \nwhere \"command args\" is one of the following:\
+    \n\ndigitize_dir dir outdir - recursively digitize images in dir and save them in outdir, preserving the directory tree structure\
+    \n\ndistribution dir width height outfile - saves to outfile the distribution of width x height patterns in dir (recursive)")
 
 def pad_zeros(bit_string, length):
     while(len(bit_string)<length):
@@ -72,6 +79,8 @@ def digitize_image(img_path):
     return(out)
 
 def digitize_directory_tree(dir_tree,outdir):
+    if dir_tree == outdir:
+        raise RuntimeError("outdir must be different from dir_tree")
     os.mkdir(outdir)
     for root,dirs,files in os.walk(dir_tree):
         for d in dirs:
@@ -99,6 +108,7 @@ def distribution(dir_tree,pattern_shape):
             if f[-4:] == '.jpg':
                 im = Image.open(root+'/'+f)
                 width,height = im.size
+                #ipdb.set_trace()
                 hi = int((height - (height % h))/h)
                 wi = int((width - (width % w))/w)
                 for i in range(hi*wi):
@@ -118,3 +128,23 @@ def distribution(dir_tree,pattern_shape):
         patterns[k] = v/(n_samples)
 
     return(patterns)
+
+if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        usage()
+        exit(1)
+    else:
+        cmd = sys.argv[1]
+        if cmd == "digitize_dir":
+            digitize_directory_tree(sys.argv[2].rstrip('/'),sys.argv[3].rstrip('/'))
+        elif cmd == "distribution" and len(sys.argv) == 6:
+            dir, w, h, outfile = sys.argv[2:]
+            out = open(outfile,'w')
+            dist = distribution(dir, (int(w),int(h)))
+            sorted_dist = sorted(dist, key=dist.get, reverse=True)
+            for k in sorted_dist:
+                out.write(k + "," + str(dist[k]) + "\n")
+            out.close()
+        else:
+            usage()
+            exit(1)

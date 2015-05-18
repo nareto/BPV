@@ -24,7 +24,18 @@ def pattern2string(pattern):
         for col in range(w):
             string += str(pattern[(row,col)])
     return(string)
-            
+
+def img2pattern(img):
+    w,h = img.size
+    pattern = np.zeros((w,h),dtype='int')
+    data = img.getdata()
+    for row in range(h):
+        for col in range(w):
+            v = data[w*row + col]
+            if int(v) == 255:
+                pattern[(row,col)] = 1
+    return(pattern)
+    
 def possible_patterns(shape):
     h,w = shape
     patterns = []
@@ -81,15 +92,29 @@ def digitize_directory_tree(dir_tree,outdir):
 
 def distribution(dir_tree,pattern_shape):
     w,h = pattern_shape
+    patterns = {}
+    n_samples = 0
     for root,dirs,files in os.walk(dir_tree):
         for f in files:
             if f[-4:] == '.jpg':
-                im = Image.open(f)
+                im = Image.open(root+'/'+f)
                 width,height = im.size
-                hi = (height - (height % h))/h
-                wi = (width - (width % w))/w
-                for i in range(int(hi*wi)):
-                    row = (i - (i % wi))/wi
+                hi = int((height - (height % h))/h)
+                wi = int((width - (width % w))/w)
+                for i in range(hi*wi):
+                    row = int((i - (i % wi))/wi)
                     col = i%wi
-                    pattern = im.crop((w*col,h*row,w*(col + 1), h*(row + 1)))
-                    pattern.show()
+                    rect = (w*col,h*row,w*(col + 1), h*(row + 1))
+                    pattern = im.crop(rect)
+                    string=pattern2string(img2pattern(pattern))
+                    if string in patterns.keys():
+                        patterns[string] += 1
+                    else:
+                        patterns[string] = 1
+                    n_samples += 1
+
+    for k in patterns.keys():
+        v = patterns[k]
+        patterns[k] = v/(n_samples)
+
+    return(patterns)

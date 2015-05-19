@@ -29,7 +29,8 @@ for imgdb,csv in sorted(files.items()):
         out.close()
     tag = imgdb[1].lstrip("img_dig/")
     pdict[(imgdb[0],tag)] = BPV.read_distribution_csv(csv)
-    
+
+#pdict[(8,"MacGill Calibrated")] = BPV.read_distribution_csv("p.macgill.csv")
 n=512  #n = |Q|, the total number of patterns
 N=50  #N = |N|, the wanted number of patterns
 W=0.1  #rate

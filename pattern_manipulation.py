@@ -2,7 +2,7 @@
 
 from PIL import Image
 import numpy as np
-import sys, os
+import sys, os, shutil
 import ipdb
 
 def usage():
@@ -80,8 +80,14 @@ def digitize_image(img_path,grayscale_levels):
     return(out)
 
 def digitize_directory_tree(dir_tree,outdir,grayscale_levels=2):
-    if dir_tree == outdir:
-        raise RuntimeError("outdir must be different from dir_tree")
+    if os.path.isdir(outdir):
+        ans = input("{0} exists, overwrite? y/[n]".format(outdir))
+        if ans == "y":
+            shutil.rmtree(outdir)
+        else:
+            print("Exiting")
+            exit(1)
+            
     os.mkdir(outdir)
     for root,dirs,files in os.walk(dir_tree):
         for d in dirs:
@@ -92,13 +98,10 @@ def digitize_directory_tree(dir_tree,outdir,grayscale_levels=2):
                 if f[-4:] == '.jpg':
                     original_image = root.rstrip('/')+'/'+f
                     digitized_image = outdir+'/'+root.lstrip(dir_tree).lstrip('/') + '/' + f
-                    try:
-                        out = digitize_image(original_image,grayscale_levels)
-                        out.save(digitized_image)
-                        #print(digitized_image)
-                    except:
-                        pass
+                    out = digitize_image(original_image,grayscale_levels)
+                    out.save(digitized_image)
 
+                    
 
 def distribution(dir_tree,pattern_shape):
     w,h = pattern_shape

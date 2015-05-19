@@ -103,10 +103,18 @@ def distribution(dir_tree,pattern_shape):
     w,h = pattern_shape
     patterns = {}
     n_samples = 0
+    n_images = 0
     for root,dirs,files in os.walk(dir_tree):
         for f in files:
             if f[-4:] == '.jpg':
-                im = Image.open(root+'/'+f)
+                n_images += 1
+    counter = 1
+    for root,dirs,files in os.walk(dir_tree):
+        for f in files:
+            if f[-4:] == '.jpg':
+                imname = root+'/'+f
+                im = Image.open(imname)
+                print("Analyzing: [{0}/{1}] {2}".format(counter,n_images,imname))
                 width,height = im.size
                 #ipdb.set_trace()
                 hi = int((height - (height % h))/h)
@@ -122,6 +130,7 @@ def distribution(dir_tree,pattern_shape):
                     else:
                         patterns[string] = 1
                     n_samples += 1
+                counter += 1
 
     for k in patterns.keys():
         v = patterns[k]

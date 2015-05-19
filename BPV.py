@@ -172,6 +172,12 @@ class BPV:
         else:
             print("Problem not solved")
                   
+    def solution_indexes(self):
+        if self.solved():
+            return self.__solution_indexes__
+        else:
+            return None
+            
     def solution_cardinality(self):
         if self.solved():
             return self.__solution_cardinality__

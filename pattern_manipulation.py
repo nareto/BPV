@@ -52,33 +52,34 @@ def possible_patterns(shape):
         patterns.append(pattern)
     return(patterns)
 
-def digitize_image(img_path):
+def digitize_image(img_path,grayscale_levels):
     im = Image.open(img_path)
     if im.mode != "RGB":
         raise RuntimeError("Image {0} is not RGB".format(img_path))
     out = Image.new("L", im.size)
     w, h = im.size
     npixels = w*h
+    lum = []
     out_data = []
-
+    
     data = list(im.getdata())
     average_lum = 0
     for pixel in data:
         r,g,b = pixel
-        lum = 0.2989*r + 0.5870*g + 0.1140*b
-        out_data.append(lum)
-        average_lum += lum
+        pixel_lum = 0.2989*r + 0.5870*g + 0.1140*b
+        lum.append(pixel_lum)
+        average_lum += pixel_lum
     average_lum *= 1/npixels
-    for i in range(len(out_data)):
-        greyvalue = out_data[i]
+    for i in range(len(lum)):
+        greyvalue = lum[i]
         if greyvalue > average_lum:
-            out_data[i] = 0
+            out_data.append(0)
         else:
-            out_data[i] = 255
+            out_data.append(255)
     out.putdata(out_data)
     return(out)
 
-def digitize_directory_tree(dir_tree,outdir):
+def digitize_directory_tree(dir_tree,outdir,grayscale_levels=2):
     if dir_tree == outdir:
         raise RuntimeError("outdir must be different from dir_tree")
     os.mkdir(outdir)
@@ -92,7 +93,7 @@ def digitize_directory_tree(dir_tree,outdir):
                     original_image = root.rstrip('/')+'/'+f
                     digitized_image = outdir+'/'+root.lstrip(dir_tree).lstrip('/') + '/' + f
                     try:
-                        out = digitize_image(original_image)
+                        out = digitize_image(original_image,grayscale_levels)
                         out.save(digitized_image)
                         #print(digitized_image)
                     except:

@@ -27,7 +27,7 @@ for imgdb,csv in sorted(files.items()):
         dist = pm.distribution(imgdb[1],(3,3))
         dist.to_csv(csv)
     tag = imgdb[1].lstrip("img_dig/")
-    pdict[(imgdb[0],tag)] = pd.read_csv(csv)
+    pdict[(imgdb[0],tag)] = pd.read_csv(csv,header=None)
 
 #pdict[(8,"MacGill Calibrated")] = BPV.read_distribution_csv("p.macgill.csv")
 
@@ -43,7 +43,7 @@ i = 0
 for imgdb, p in sorted(pdict.items()):
     n = len(p)
     if n < tot_patterns:
-        print("WARNING: probability vector's length is {0}<{1}".format(n,tot_patterns))
+        print("WARNING: probability vector's {2} length is {0}<{1}".format(n,tot_patterns,imgdb[1]))
     p_array = np.array(p.ix[:,1])
     exact_solver = BPV.BPV("exact",n,N,W,p_array)
     exact_solver.solve()

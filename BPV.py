@@ -1,7 +1,6 @@
 #import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
-from pandas import Series
 import numpy as np
 import pulp
 import ipdb
@@ -84,15 +83,15 @@ def is_non_increasing_vector(vector):
             
 
 class BPV:
-    def __init__(self,solver_type,tot_patterns,max_cardinality,max_rate,p):
+    def __init__(self,solver_type,tot_patterns,max_cardinality,max_rate,p,timesolver=False):
         if len(p) != tot_patterns:
             err = "len(p) == tot_patterns must hold"
             raise RuntimeError(err)
         else:
             self.__is_solved__ = 0
             self.__all_solvers__ = {"exact": self.exact_solver, "euristic": self.euristic_solver,\
-                                    "scaled_exact": self.scaled_exact_solver, "dynprog": self.dynprog_solver,\
-                                    "dynprog2": self.dynprog_solver2}
+                                    "scaled_exact": self.scaled_exact_solver, "decgraph": self.decgraph_solver,\
+                                    "decgraph_epsilon": self.decgraph_solver_epsilon}
             self.__solver_type__ = None
             self.tot_patterns = tot_patterns
             self.max_cardinality = max_cardinality
@@ -101,6 +100,7 @@ class BPV:
             self.plog1onp = self.p*np.log(1/self.p)
             self.set_solver(solver_type)
             self.tot_entropy = self.plog1onp.sum()
+            self.timesolver = timesolver
 
 
     def set_solver(self, solver_type):
@@ -108,7 +108,7 @@ class BPV:
             err = ("solver_type has to be one of"+" \"%s\""*len(self.__all_solvers__) % tuple(self.__all_solvers__.keys()))
             raise RuntimeError(err)
         else:
-            if solver_type == "dynprog" and not is_non_increasing_vector(self.p):
+            if solver_type == "decgraph" and not is_non_increasing_vector(self.p):
                 print("ERROR: dynamic programming requires the probability vector to be decreasing")
             else:
                 self.__solver_type__ = solver_type
@@ -136,8 +136,8 @@ class BPV:
             if self.solver() == None:
                 print("ERROR: set solver type with set_solver")
             else:
-                if self.solver() == "dynprog":
-                    self.__all_solvers__["dynprog"](epsilon)
+                if self.solver() == "decgraph_epsilon":
+                    self.__all_solvers__["decgraph_epsilon"](epsilon)
                 elif self.solver() == "scaled_exact":
                     self.__all_solvers__["scaled_exact"](epsilon)
                 else:
@@ -145,7 +145,7 @@ class BPV:
                 self.__is_solved__ = 1
 
 
-    def print_solution_summary(self):
+    def pprint_solution(self):
         if self.solved() == 1:
             print("Solver = ", self.solver(),\
                   "\nEntropy = ", self.__solution_entropy__, \
@@ -156,7 +156,7 @@ class BPV:
                   
     def solution_indexes(self):
         if self.solved():
-            return Series(self.__solution_indexes__)
+            return self.__solution_indexes__
         else:
             return None
             
@@ -312,7 +312,7 @@ class BPV:
                 self.__solution_indexes__.append(arg_max)
                 self.__solution_cardinality__ += 1
 
-    def dynprog_solver(self,epsilon):
+    def decgraph_solver_epsilon(self,epsilon):
         """Calculates an epsilon-solution using Dynamic Programming"""
 
         scaling_factor = 1#epsilon*self.plog1onp[-1]/self.tot_patterns
@@ -329,8 +329,8 @@ class BPV:
         root = (-1,0,0)
         heapq.heappush(heap, root)
         table[root] = 0
-        self.dynprog_best_value = 0
-        self.dynprog_best_value_node = (-1,-1,-1)
+        self.decgraph_best_value = 0
+        self.decgraph_best_value_node = (-1,-1,-1)
         predecessor = {}
         leafs = []
 
@@ -375,9 +375,9 @@ class BPV:
                 table[child] = candidate_new_rate
                 if add_to_heap == 1:
                     heapq.heappush(heap, child)
-                if child[1] > self.dynprog_best_value:
-                    self.dynprog_best_value = child[1]
-                    self.dynprog_best_value_node = child
+                if child[1] > self.decgraph_best_value:
+                    self.decgraph_best_value = child[1]
+                    self.decgraph_best_value_node = child
                 if is_boundary_cell(child):
                     leafs.append(child)
             
@@ -416,7 +416,7 @@ class BPV:
             i,j,k = cur
             extracted_nodes[cur] = (counter, table[cur])
             #intable_rate = table[cur]
-            if i + 1 < self.tot_patterns and j + reverse_cumulative_plog1onp[i] >= self.dynprog_best_value:
+            if i + 1 < self.tot_patterns and j + reverse_cumulative_plog1onp[i] >= self.decgraph_best_value:
                 child1 = (i+1,j,k)
                 child2 = (i+1, j+scaled_plog1onp[i+1], k+1)
                 if is_valid_cell(child1):
@@ -425,10 +425,10 @@ class BPV:
                     add_child(cur, (child2),2)
 
         self.__solution_indexes__ , self.__solution_entropy__,\
-            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.dynprog_best_value_node,1)
+            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.decgraph_best_value_node,1)
         self.__solution_indexes__.sort()
             
-        print("\nin table: ", self.dynprog_best_value , "  calculated (scaled): ", 1 + int(self.__solution_entropy__/scaling_factor),\
+        print("\nin table: ", self.decgraph_best_value , "  calculated (scaled): ", 1 + int(self.__solution_entropy__/scaling_factor),\
               " calculated: ", self.__solution_entropy__)
 
         if self.decisiongraph_plot == 1:
@@ -439,10 +439,10 @@ class BPV:
                 ax.scatter(x,y,z,'r')
                 ax.text(x,y,z, str(n), fontsize=9)
             
-            leafs.remove(self.dynprog_best_value_node)
-            for l in [self.dynprog_best_value_node] + leafs:
+            leafs.remove(self.decgraph_best_value_node)
+            for l in [self.decgraph_best_value_node] + leafs:
                 cur = l
-                if cur == self.dynprog_best_value_node:
+                if cur == self.decgraph_best_value_node:
                     linestyle='-ob'
                 else:
                     linestyle='-r'
@@ -473,33 +473,26 @@ class BPV:
             ax.set_zlabel('Cardinality')
             plt.show()
 
-    def dynprog_solver2(self):
+    def decgraph_solver(self):
         """Calculates solution using decision graph"""
 
-        #scaled_plog1onp = self.plog1onp
-        #scaled_plog1onp = np.zeros(self.tot_patterns)
-        #for i in range(self.tot_patterns):
-        #    scaled_plog1onp[i] = 1 + int(self.plog1onp[i]/scaling_factor)
-        #scaled_tot_entropy = scaled_plog1onp.sum()
-
         alpha = {}
-        graph_dimensions = (self.tot_patterns, self.max_rate, self.max_cardinality)
+        predecessor = {}
+        self.decgraph_best_value = -1
+        self.decgraph_best_value_node = None
         root = (-1,0,0)
         alpha[root] = 0
-        self.dynprog_best_value = 0
-        self.dynprog_best_value_node = (-1,-1,-1)
-        predecessor = {}
-        leafs = []
         visitlist = [root]
         next_visitlist = []
+
+        graph_dimensions = (self.tot_patterns, self.max_rate, self.max_cardinality)
+        leafs = []
         
         reverse_cumulative_plog1onp = np.zeros(self.tot_patterns)
         reverse_cumulative_plog1onp[self.tot_patterns - 1] = self.plog1onp[self.tot_patterns - 1]
         for i in np.arange(self.tot_patterns - 2, -1, -1):
             reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + self.plog1onp[i]
 
-
-        #graph_dimensions = (self.tot_patterns, scaled_tot_entropy, self.max_cardinality)
         def is_valid_cell(cell):
             k,mu,nu = cell
             if k >= graph_dimensions[0] or mu > graph_dimensions[1] or nu > graph_dimensions[2]:
@@ -514,7 +507,7 @@ class BPV:
                 return(0)
             
         def add_child(parent, child, arc_type):
-            "Looks at child and if feasible adds it to queue"
+            "Looks at child and if feasible adds it to next_visitlist"
             if arc_type == 1:
                 candidate_new_entropy = alpha[parent]
             elif arc_type == 2:
@@ -534,9 +527,9 @@ class BPV:
                 alpha[child] = candidate_new_entropy
                 if add_to_next_visitlist == 1:
                     next_visitlist.append(child)
-                if alpha[child] > self.dynprog_best_value:
-                    self.dynprog_best_value = alpha[child]
-                    self.dynprog_best_value_node = child
+                if alpha[child] > self.decgraph_best_value:
+                    self.decgraph_best_value = alpha[child]
+                    self.decgraph_best_value_node = child
                 if is_boundary_cell(child):
                     leafs.append(child)
             
@@ -565,35 +558,34 @@ class BPV:
                     cur = next
             return(indexes,entropy,rate,cardinality)
 
-        counter = 0
-        extracted_nodes = {}
+        #counter = 0
+        extracted_nodes = []
         while len(visitlist) != 0: #main loop
             #ipdb.set_trace()
             cur = visitlist.pop()
             if cur in extracted_nodes:
                 raise RuntimeError("node has been inserted more than one time in visitlist")
-            extracted_nodes[cur] = (counter, alpha[cur])
-            counter += 1
+            extracted_nodes.append(cur)
+            #counter += 1
             k,mu,nu = cur
-            #if True:
-            #if k+1 < self.tot_patterns:
-            if k+1 < self.tot_patterns and alpha[cur] + reverse_cumulative_plog1onp[k] >= self.dynprog_best_value:
+            if k+1 < self.tot_patterns and alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value:
                 child1 = (k+1,mu,nu)
                 child2 = (k+1, mu+self.p[k+1], nu+1)
                 if is_valid_cell(child1):
-                    add_child(cur, (child1), 1)
+                    add_child(cur, child1, 1)
                 if is_valid_cell(child2) and mu + self.p[k+1] <= self.max_rate:
-                    add_child(cur, (child2),2)
+                    add_child(cur, child2,2)
             if len(visitlist) == 0:
                 visitlist = next_visitlist
                 next_visitlist = []
 
         self.__solution_indexes__ , self.__solution_entropy__,\
-            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.dynprog_best_value_node,1)
+            self.__solution_rate__, self.__solution_cardinality__ = check_path(self.decgraph_best_value_node,0)
         self.__solution_indexes__.sort()
             
-        print("\nin graph: ", self.dynprog_best_value , "  calculated : ", self.__solution_entropy__,)
+        #print("\nin graph: ", self.decgraph_best_value , "  calculated : ", self.__solution_entropy__,)
 
+        self.decisiongraph_plot = 0
         if self.decisiongraph_plot == 1:
             fig = plt.figure()
             ax = fig.gca(projection='3d')
@@ -602,10 +594,10 @@ class BPV:
                 ax.scatter(x,y,z,'r')
                 ax.text(x,y,z, str(n), fontsize=9)
             
-            leafs.remove(self.dynprog_best_value_node)
-            for l in [self.dynprog_best_value_node] + leafs:
+            leafs.remove(self.decgraph_best_value_node)
+            for l in [self.decgraph_best_value_node] + leafs:
                 cur = l
-                if cur == self.dynprog_best_value_node:
+                if cur == self.decgraph_best_value_node:
                     linestyle='-ob'
                 else:
                     linestyle='-r'

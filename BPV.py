@@ -113,7 +113,8 @@ class BPV:
             raise RuntimeError(err)
         else:
             if self.solver_name == "decgraph" and not is_non_increasing_vector(self.p):
-                print("ERROR: dynamic programming requires the probability vector to be decreasing")
+                pass
+                #print("ERROR: dynamic programming requires the probability vector to be decreasing")
             else:
                 self.solver = self.__all_solvers__[self.solver_name]
 
@@ -285,6 +286,11 @@ class BPV:
     def decgraph_solver(self):
         """Calculates solution using decision graph"""
 
+        #print(type(self.p))
+        #self.p.sort(reverse=True)
+        #ipdb.set_trace()
+
+        self.p = self.p[::-1]
         alpha = {}
         predecessor = {}
         self.decgraph_best_value = -1
@@ -302,12 +308,22 @@ class BPV:
         for i in np.arange(self.tot_patterns - 2, -1, -1):
             reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + self.plog1onp[i]
 
-        def add_child(parent, child, candidate_new_entropy):
+        def fchild1():
+            pass
+        
+        def fchild2():
+            pass
+            
+        def add_child(parent, child, candidate_new_entropy,arctype):
             "Looks at child and if feasible adds it to next_visitlist"
+            if arctype == 1:
+                fchild1()
+            else:
+                fchild2()
             add_child = 0
             add_to_next_visitlist = 0
             try:
-                if candidate_new_entropy > alpha[child]:
+                if candidate_new_entropy > alpha[child]: #Bellman condition
                     add_child = 1
             except KeyError:
                 add_child = 1
@@ -335,10 +351,10 @@ class BPV:
                 except KeyError:
                     break
                 if cur[1] != next[1]:
-                    k = cur[0]
+                    k = self.tot_patterns -1 - cur[0]
                     indexes.append(k)
                     cardinality += 1
-                    rate += self.p[k]
+                    rate += self.p[cur[0]]
                     entropy += self.plog1onp[k]
                     if print_taken_patterns:
                         print("taken pattern ", k, ", p[k] = ", self.p[k], "scaled plog1onp[k] = ", self.plog1onp[k])
@@ -355,9 +371,10 @@ class BPV:
             if k+1 < self.tot_patterns and alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value:
                 child1 = (k+1,mu,nu)
                 child2 = (k+1, mu+self.p[k+1], nu+1)
-                add_child(cur, child1, alpha[cur])
                 if mu + self.p[k+1] <= self.max_rate:
-                    add_child(cur, child2, alpha[cur] + self.plog1onp[k+1])
+                    add_child(cur, child1, alpha[cur],1)
+                    if nu + 1 <= self.max_cardinality:
+                        add_child(cur, child2, alpha[cur] + self.plog1onp[k+1],2)
             if not visitlist:
                 visitlist = next_visitlist
                 next_visitlist = []

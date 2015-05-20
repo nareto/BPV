@@ -229,6 +229,7 @@ class BPV:
         pulp_instance += constraint_rate <= self.max_rate, "Rate constraint"
         
         pulp_instance.solve()
+        
         self.solution_indexes = []
         self.solution_cardinality = 0
         self.solution_rate = 0
@@ -301,27 +302,8 @@ class BPV:
         for i in np.arange(self.tot_patterns - 2, -1, -1):
             reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + self.plog1onp[i]
 
-        def is_valid_cell(cell):
-            k,mu,nu = cell
-            if k >= graph_dimensions[0] or mu > graph_dimensions[1] or nu > graph_dimensions[2]:
-                return(0)
-            else:
-                return(1)    
-
-        def is_boundary_cell(cell):
-            if is_valid_cell(cell) and any(cell[i] == graph_dimensions[i] - 1 for i in [0,1,2]):
-                return(1)
-            else:
-                return(0)
-            
-        def add_child(parent, child, arc_type):
+        def add_child(parent, child, candidate_new_entropy):
             "Looks at child and if feasible adds it to next_visitlist"
-            if arc_type == 1:
-                candidate_new_entropy = alpha[parent]
-            elif arc_type == 2:
-                candidate_new_entropy = alpha[parent] + self.plog1onp[child[0]]
-            else:
-                raise RuntimeError("arc_type must be either 1 or 2")
             add_child = 0
             add_to_next_visitlist = 0
             try:
@@ -338,8 +320,8 @@ class BPV:
                 if alpha[child] > self.decgraph_best_value:
                     self.decgraph_best_value = alpha[child]
                     self.decgraph_best_value_node = child
-                if is_boundary_cell(child):
-                    leafs.append(child)
+                #if is_boundary_cell(child):
+                #    leafs.append(child)
             
         def check_path(coords, print_taken_patterns=0):
             cur = coords
@@ -366,24 +348,17 @@ class BPV:
                     cur = next
             return(indexes,entropy,rate,cardinality)
 
-        #counter = 0
-        extracted_nodes = []
-        while len(visitlist) != 0: #main loop
+        while not not visitlist:
             #ipdb.set_trace()
             cur = visitlist.pop()
-            if cur in extracted_nodes:
-                raise RuntimeError("node has been inserted more than one time in visitlist")
-            extracted_nodes.append(cur)
-            #counter += 1
             k,mu,nu = cur
             if k+1 < self.tot_patterns and alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value:
                 child1 = (k+1,mu,nu)
                 child2 = (k+1, mu+self.p[k+1], nu+1)
-                if is_valid_cell(child1):
-                    add_child(cur, child1, 1)
-                if is_valid_cell(child2) and mu + self.p[k+1] <= self.max_rate:
-                    add_child(cur, child2,2)
-            if len(visitlist) == 0:
+                add_child(cur, child1, alpha[cur])
+                if mu + self.p[k+1] <= self.max_rate:
+                    add_child(cur, child2, alpha[cur] + self.plog1onp[k+1])
+            if not visitlist:
                 visitlist = next_visitlist
                 next_visitlist = []
 

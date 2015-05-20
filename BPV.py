@@ -20,6 +20,7 @@ import pdb
 #    f.close()
 #    return(p)
 
+
 def relative_error(approximated_instance, exact_instance):
     if approximated_instance.solved() and exact_instance.solved():
         return abs((exact_instance.solution_entropy() - approximated_instance.solution_entropy())/exact_instance.solution_entropy())
@@ -82,25 +83,6 @@ def is_non_increasing_vector(vector):
         return ret
             
 
-
-#
-#class dyn_prog_graph_node:
-#    def __init__(self,coords):
-#        self.coords = tuple(coords)
-#
-#    def __eq__(self, other):
-#        return (self.coords == other.coords)
-#    
-#    def __lt__(self, other):
-#        if type(other) != type(self):
-#            raise NotImplementedError("Can only compare two dyn_prog_graph_node")
-#        #if self.coords[0] == other.coords[0] and self.coords[1] == other.coords[1] and self.coords[2] != other.coords[2]:
-#        #    raise RuntimeError("Two nodes can't differ only in the last coordinate")
-#        #else:
-#        selfinvcoords = (self.coords[0], -self.coords[1], self.coords[2])
-#        otherinvcoords = (other.coords[0], -other.coords[1], other.coords[2])
-#        return (selfinvcoords < otherinvcoords) #uses lexicographic ordering
-#            
 class BPV:
     def __init__(self,solver_type,tot_patterns,max_cardinality,max_rate,p):
         if len(p) != tot_patterns:

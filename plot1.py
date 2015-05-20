@@ -17,6 +17,7 @@ pdict = {}
 #        (6,"img_dig/cvcl/mountain"): "p.cvcl-mountain.csv",\
 #        (7,"img_dig/cvcl/Opencountry"): "p.cvcl-opencountry.csv"}
 #
+
 files = {(0,"tmp_dig/"):"tmp.csv"}
 for imgdb,csv in sorted(files.items()):
     print(imgdb)

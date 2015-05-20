@@ -1,9 +1,9 @@
 #import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from pandas import Series
 import numpy as np
 import pulp
-import heapq
 import ipdb
 import pdb
 
@@ -156,7 +156,7 @@ class BPV:
                   
     def solution_indexes(self):
         if self.solved():
-            return self.__solution_indexes__
+            return Series(self.__solution_indexes__)
         else:
             return None
             

@@ -2,6 +2,7 @@
 
 from PIL import Image
 import numpy as np
+from pandas import Series
 import sys, os, shutil
 import ipdb
 
@@ -52,7 +53,7 @@ def possible_patterns(shape):
         patterns.append(pattern)
     return(patterns)
 
-def digitize_image(img_path,grayscale_levels):
+def digitize_image(img_path):
     im = Image.open(img_path)
     if im.mode != "RGB":
         raise RuntimeError("Image {0} is not RGB".format(img_path))
@@ -79,7 +80,7 @@ def digitize_image(img_path,grayscale_levels):
     out.putdata(out_data)
     return(out)
 
-def digitize_directory_tree(dir_tree,outdir,grayscale_levels=2):
+def digitize_directory_tree(dir_tree,outdir):
     if os.path.isdir(outdir):
         ans = input("{0} exists, overwrite? y/[n]".format(outdir))
         if ans == "y":
@@ -98,7 +99,7 @@ def digitize_directory_tree(dir_tree,outdir,grayscale_levels=2):
                 if f[-4:] == '.jpg':
                     original_image = root.rstrip('/')+'/'+f
                     digitized_image = outdir+'/'+root.lstrip(dir_tree).lstrip('/') + '/' + f
-                    out = digitize_image(original_image,grayscale_levels)
+                    out = digitize_image(original_image)
                     out.save(digitized_image)
 
                     
@@ -118,6 +119,9 @@ def distribution(dir_tree,pattern_shape):
             if f[-4:] == '.jpg':
                 imname = root+'/'+f
                 im = Image.open(imname)
+                if im.mode != 'L':
+                    print("Image must be in binary format")
+                    exit(1)
                 print("Analyzing: [{0}/{1}] {2}".format(counter,n_images,imname))
                 width,height = im.size
                 #ipdb.set_trace()
@@ -140,7 +144,7 @@ def distribution(dir_tree,pattern_shape):
         v = patterns[k]
         patterns[k] = v/(n_samples)
 
-    return(patterns)
+    return(Series(patterns))
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

@@ -1,25 +1,33 @@
 #import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+import pandas as pd
 import numpy as np
 import pulp
 import ipdb
 import pdb
 import timeit
 
-#def read_distribution_csv(file):
-#    f = open(file,'r')
-#    lines = f.readlines()
-#    n = len(lines)
-#    p = np.zeros(n)
-#    i = 0
-#    for l in lines:
-#        binary_code, probability = l.split(',')
-#        p[i] = float(probability)
-#        i += 1
-#    f.close()
-#    return(p)
+def dec_to_bin(number):
+    return(bin(int(number))[2:])
 
+def read_csv(csvfile, binary=True):
+    data = pd.read_csv(csvfile,header=None,names=["pattern","p"])
+    data["plog1onp"] = data["p"]*np.log(1/data["p"])
+    if not binary:
+        data["pattern"] = data["pattern"].map(dec_to_bin)
+    return(data)
+
+
+def data_head(data,rows=10):
+    """data is a pandas DataFrame with columns "pattern", "p" and "plog1onp" """
+
+    data_head = pd.DataFrame(data.copy()[["pattern","p"]][:rows])
+    sum  = data_head["p"].sum()
+    data_head["p"] /= sum
+    data_head["plog1onp"] = data_head["p"]*np.log(1/data_head["p"])
+    #print(data_head, data_head["p"].sum())
+    return(data_head)
 
 def relative_error(approximated_instance, exact_instance):
     if approximated_instance.solved() and exact_instance.solved():
@@ -112,11 +120,11 @@ class BPV:
             err = ("solver_name has to be one of"+" \"%s\""*len(self.__all_solvers__) % tuple(self.__all_solvers__.keys()))
             raise RuntimeError(err)
         else:
-            if self.solver_name == "decgraph" and not is_non_increasing_vector(self.p):
-                pass
-                #print("ERROR: dynamic programming requires the probability vector to be decreasing")
-            else:
-                self.solver = self.__all_solvers__[self.solver_name]
+            #if self.solver_name == "decgraph" and not is_non_increasing_vector(self.p):
+            #    pass
+            #    #print("ERROR: dynamic programming requires the probability vector to be decreasing")
+            #else:
+            self.solver = self.__all_solvers__[self.solver_name]
 
                 
     def solve(self, epsilon=0.05):
@@ -302,6 +310,7 @@ class BPV:
 
         graph_dimensions = (self.tot_patterns, self.max_rate, self.max_cardinality)
         leafs = []
+        self.decgraph_len_visitlist = [1]
         
         reverse_cumulative_plog1onp = np.zeros(self.tot_patterns)
         reverse_cumulative_plog1onp[self.tot_patterns - 1] = self.plog1onp[self.tot_patterns - 1]
@@ -386,6 +395,7 @@ class BPV:
                     if nu + 1 <= self.max_cardinality:
                         add_child(cur, child2, alpha[cur] + self.plog1onp[k+1],2)
             if not visitlist:
+                self.decgraph_len_visitlist.append(len(next_visitlist))
                 visitlist = next_visitlist
                 next_visitlist = []
 

@@ -285,7 +285,8 @@ class BPV:
         
         def fchild2():
             pass
-
+        
+        #main loop
         while not not visitlist:
             cur = visitlist.pop()
             k,mu,nu = cur
@@ -309,7 +310,7 @@ class BPV:
         self.solution_cardinality = 0
         self.solution_rate = 0
         self.solution_entropy = 0
-        #main loop
+
         while 1:
             try:
                 next = predecessor[cur]
@@ -318,7 +319,6 @@ class BPV:
             if cur[1] != next[1]:
                 k = cur[0]
                 indexes.append(mapper[k])
-                #indexes.append(k)
                 self.solution_cardinality += 1
                 self.solution_rate += p[k]
                 self.solution_entropy += plog1onp[k]

@@ -7,6 +7,7 @@ import pulp
 import ipdb
 import pdb
 import timeit
+from collections import deque
 
 def dec_to_bin(number):
     return(bin(int(number))[2:])
@@ -246,8 +247,9 @@ class BPV:
         self.decgraph_best_value_node = None
         root = (-1,0,0)
         alpha[root] = 0
-        visitlist = [root]
-        next_visitlist = []
+        visitlist = deque()
+        visitlist.append(root)
+        next_visitlist = deque()
 
         #graph_dimensions = (self.tot_patterns, self.max_rate, self.max_cardinality)
         #leafs = []

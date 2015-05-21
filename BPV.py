@@ -131,7 +131,6 @@ class BPV:
         if self.solved == True:
             print("\nSolver = ", self.solver_name,\
                   "\nEntropy = ", self.solution_entropy, \
-                  "\nEntropy = ", self.solution_entropy, \
                   "\nCardinality = ", self.solution_cardinality,\
                   "\nRate = ", self.solution_rate)
             if self.time_solver == True:
@@ -290,7 +289,8 @@ class BPV:
         #self.p.sort(reverse=True)
         #ipdb.set_trace()
 
-        self.p = self.p[::-1]
+        self.p = self.p[::-1]#TODO: se non lo rigiro (e cambio check_path) funziona
+        self.plog1onp = self.plog1onp[::-1]
         alpha = {}
         predecessor = {}
         self.decgraph_best_value = -1
@@ -308,6 +308,11 @@ class BPV:
         for i in np.arange(self.tot_patterns - 2, -1, -1):
             reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + self.plog1onp[i]
 
+        #cumulative_plog1onp = np.zeros(self.tot_patterns)
+        #cumulative_plog1onp[self.tot_patterns - 1] = self.plog1onp[self.tot_patterns - 1]
+        #for i in np.arange(self.tot_patterns - 2, -1, -1):
+        #    cumulative_plog1onp[i] = cumulative_plog1onp[i+1] + self.plog1onp[i]
+            
         def fchild1():
             pass
         
@@ -352,10 +357,13 @@ class BPV:
                     break
                 if cur[1] != next[1]:
                     k = self.tot_patterns -1 - cur[0]
+                    #k = cur[0]
                     indexes.append(k)
                     cardinality += 1
                     rate += self.p[cur[0]]
-                    entropy += self.plog1onp[k]
+                    #rate += self.p[k]
+                    entropy += self.plog1onp[cur[0]]
+                    #entropy += self.plog1onp[k]
                     if print_taken_patterns:
                         print("taken pattern ", k, ", p[k] = ", self.p[k], "scaled plog1onp[k] = ", self.plog1onp[k])
                 if next == root:
@@ -371,8 +379,10 @@ class BPV:
             if k+1 < self.tot_patterns and alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value:
                 child1 = (k+1,mu,nu)
                 child2 = (k+1, mu+self.p[k+1], nu+1)
+                #add_child(cur, child1, alpha[cur],1)
                 if mu + self.p[k+1] <= self.max_rate:
                     add_child(cur, child1, alpha[cur],1)
+                    #add_child(cur, child2, alpha[cur] + self.plog1onp[k+1],2)
                     if nu + 1 <= self.max_cardinality:
                         add_child(cur, child2, alpha[cur] + self.plog1onp[k+1],2)
             if not visitlist:

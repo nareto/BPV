@@ -27,10 +27,10 @@ class Data():
         self.df["plog1onp"] = self.df["p"]*np.log(1/self.df["p"])
         if not binary:
             self.df["pattern"] = self.df["pattern"].map(dec_to_bin)
-        return(self.df)
+        #return(self.df)
 
     def data_head(self,rows=10):
-        """Returns a DataFrame copy of the first rows rows of self.df"""
+        """Returns a DataFrame copy of the first rows rows of self.df, renormalizing vector p"""
 
         data_head = Data(pd.DataFrame(self.df[["pattern","p"]][:rows].copy()))
         sum  = data_head.df["p"].sum()
@@ -88,22 +88,10 @@ def print_comparison_table(*BPV_instances):
         for r in rows:
             print(row_format.format(*r))
 
-def is_non_increasing_vector(vector):
-    if len(vector.shape) != 1:
-        print("ERROR: is_decreasing_vector works only for 1D arrays")
-    else:
-        ret = True
-        for i in range(len(vector) - 1):
-            if vector[i+1] > vector[i]:
-                ret = False
-                break
-        return ret
-            
-
 class BPV:
-    def __init__(self,solver_name,data,max_cardinality,max_rate,epsilon=None,time_solver=False,):
+    def __init__(self,solver_name,data,max_cardinality,max_rate,epsilon=0.05,time_solver=False,):
         self.solved = False
-        self.__all_solvers__ = {"exact": self.exact_solver, "euristic": self.euristic_solver,\
+        self.__all_solvers__ = {"pulp": self.pulp_solver, "euristic": self.euristic_solver,\
                                  "decgraph": self.decgraph_solver,\
                                 "decgraph_epsilon": self.decgraph_solver_epsilon}
         self.data = data
@@ -118,17 +106,11 @@ class BPV:
 
 
     def set_solver(self):
-        #self.solver = self.__all_solvers__[solver_name]
         if self.solver_name not in self.__all_solvers__.keys():
             err = ("solver_name has to be one of"+" \"%s\""*len(self.__all_solvers__) % tuple(self.__all_solvers__.keys()))
             raise RuntimeError(err)
         else:
-            #if self.solver_name == "decgraph" and not is_non_increasing_vector(self.p):
-            #    pass
-            #    #print("ERROR: dynamic programming requires the probability vector to be decreasing")
-            #else:
             self.solver = self.__all_solvers__[self.solver_name]
-
                 
     def solve(self, epsilon=0.05):
         if self.time_solver == True:
@@ -144,7 +126,7 @@ class BPV:
                   "\nEntropy = ", self.solution_entropy, \
                   "\nCardinality = ", self.solution_cardinality,\
                   "\nRate = ", self.solution_rate,\
-                  "\n\n", self.solution)
+                  "\n\n", self.data.df[self.data.df[self.solver_name] == 1])
             
             if self.time_solver == True:
                 print("Solution time in seconds = ", self.solution_time)
@@ -160,8 +142,8 @@ class BPV:
 
         minidx = self.solution.index.min()
         
-    def exact_solver(self):
-        """Uses PuLP to calculate [one] exact solution"""
+    def pulp_solver(self):
+        """Uses PuLP to calculate [one] pulp solution"""
 
         pulp_instance = pulp.LpProblem(" (BPV) ",pulp.LpMaximize)
         
@@ -195,6 +177,11 @@ class BPV:
                 self.solution_cardinality += 1
                 self.solution_rate += self.data.df["p"][i]
         self.solution = self.data.df.ix[indexes]
+        index_series = np.zeros(self.tot_patterns)
+        for i in indexes:
+            index_series[i] = 1
+        self.data.df['pulp'] = pd.Series(index_series)
+
         
     def euristic_solver(self):
         """The solution self.solution_indexes is defined as a level curve of sampled_euristic_cost, that is
@@ -204,60 +191,54 @@ class BPV:
         sampled_euristic_cost we store it's index in self.solution_indexes[i], i.e. sampled_euristic_cost[self.solution_indexes[i]] is the
         i-th greatest value of sampled_euristic_cost."""
 
-        self.data.df.sort_index(by="p",ascending=False,inplace=True)
-        idx = pd.Index([j for j in range(len(self.data.df))])
-        self.data.df.set_index(idx,inplace=True)
-
-        p = self.data.df["p"]
-        plog1onp = self.data.df["plog1onp"]
-
         def euristic_unitary_cost(value):
             num = -value*np.log(value)
             den = max(1/self.max_cardinality, value/self.max_rate)
             return num/den
 
-        sampled_euristic_cost = np.zeros(self.tot_patterns)
-        for i in range(self.tot_patterns):
-            sampled_euristic_cost[i] = euristic_unitary_cost(p[i])
+        df = self.data.df[['p','plog1onp']].copy()
+        df['cost'] = np.NaN
+        for i in df.index:
+            df['cost'][i] = euristic_unitary_cost(df['p'][i])
 
-        greatest_values = []
-        indexes = []   #this will be the list of indexes in {1,...,self.tot_patterns} that yield the solution
-        self.solution_cardinality = 0  #we use this to keep track of how many patterns we're adding to indexes
-        self.solution_rate = 0  #we use this to ensure that the so far chosen patterns don't exceed the maximum rate
+        df.sort_index(by="cost",ascending=False,inplace=True)
+
+        self.solution_cardinality = 0
+        self.solution_rate = 0
         self.solution_entropy = 0
-        search_space = [j for j in range(self.tot_patterns)]
-    
-        for i in range(self.max_cardinality):
-            greatest_values.append(search_space[0])
-            for k in search_space:
-                if sampled_euristic_cost[k] > sampled_euristic_cost[greatest_values[i]]:# and k not in greatest_values:
-                    greatest_values[i] = k
-            #TODO: why did I originally write this and not simply arg_max = greatest_values[i] ?
-            #arg_max = greatest_values[i] if greatest_values[i] != search_space[0] else search_space[0]
-            arg_max = greatest_values[i]
-            search_space.remove(arg_max)
-            if self.solution_rate + p[arg_max] > self.max_rate:
-                break
-            else:
-                self.solution_rate += p[arg_max]
-                self.solution_entropy += plog1onp[arg_max]#p[arg_max]*np.log(1/p[arg_max])
-                indexes.append(arg_max)
+        indexes = []
+        for i in df.index:
+            p = df['p'][i]
+            plog1onp = df['plog1onp'][i]
+            if self.solution_cardinality + 1 <= self.max_cardinality\
+               and self.solution_rate + p < self.max_rate:
+                indexes.append(i)
                 self.solution_cardinality += 1
+                self.solution_rate += p
+                self.solution_entropy += plog1onp
+            else:
+                break
         self.solution = self.data.df.ix[indexes]
-
-                
+        index_series = np.zeros(self.tot_patterns)
+        for i in indexes:
+            index_series[i] = 1
+        self.data.df['euristic'] = pd.Series(index_series)
+        
+                 
     def decgraph_solver(self):
         """Calculates solution using decision graph"""
 
-        self.data.df.sort_index(by="p",ascending=True,inplace=True)
-        idx = pd.Index([j for j in range(len(self.data.df))])
-        self.data.df.set_index(idx,inplace=True)
-
-        #p = self.data.df["p"]
-        #plog1onp = self.data.df["plog1onp"]
+        df = self.data.df[['p','plog1onp']].copy()
+        df.sort_index(by="p",ascending=True,inplace=True)
+        idx = pd.Index([j for j in range(len(df))])
+        mapper = pd.Series(df.index)
+        df.set_index(idx,inplace=True)
+        
+        #p = df["p"]
+        #plog1onp = df["plog1onp"]
         #indexing is much faster on a numpy array than on a pandas dataframe:
-        p = np.array(self.data.df["p"])
-        plog1onp = np.array(self.data.df["plog1onp"])
+        p = np.array(df["p"])
+        plog1onp = np.array(df["plog1onp"])
 
         alpha = {}
         predecessor = {}
@@ -268,8 +249,8 @@ class BPV:
         visitlist = [root]
         next_visitlist = []
 
-        graph_dimensions = (self.tot_patterns, self.max_rate, self.max_cardinality)
-        leafs = []
+        #graph_dimensions = (self.tot_patterns, self.max_rate, self.max_cardinality)
+        #leafs = []
         self.decgraph_len_visitlist = [1]
         
         reverse_cumulative_plog1onp = np.zeros(self.tot_patterns)
@@ -299,31 +280,6 @@ class BPV:
                 #if is_boundary_cell(child):
                 #    leafs.append(child)
             
-        def check_path(coords, print_taken_patterns=0):
-            cur = coords
-            indexes = []
-            self.solution_cardinality = 0
-            self.solution_rate = 0
-            self.solution_entropy = 0
-            while 1:
-                try:
-                    next = predecessor[cur]
-                except KeyError:
-                    break
-                if cur[1] != next[1]:
-                    k = cur[0]
-                    indexes.append(k)
-                    self.solution_cardinality += 1
-                    self.solution_rate += p[k]
-                    self.solution_entropy += plog1onp[k]
-                    if print_taken_patterns:
-                        print("taken pattern ", k, ", p[k] = ", p[k], "plog1onp[k] = ", plog1onp[k])
-                if next == root:
-                    break
-                else:
-                    cur = next
-            self.solution=self.data.df.ix[indexes]
-            
         def fchild1():
             pass
         
@@ -338,59 +294,89 @@ class BPV:
                 child2 = (k+1, mu+p[k+1], nu+1)
                 if mu + p[k+1] <= self.max_rate:
                     add_child(cur, child1, alpha[cur])
-                    fchild1()
+                    #fchild1()
                     if nu + 1 <= self.max_cardinality:
                         add_child(cur, child2, alpha[cur] + plog1onp[k+1])
-                        fchild2()
+                        #fchild2()
             if not visitlist:
                 self.decgraph_len_visitlist.append(len(next_visitlist))
                 visitlist = next_visitlist
                 next_visitlist = []
 
-        check_path(self.decgraph_best_value_node)
-            
-        self.decisiongraph_plot = 0
-        if self.decisiongraph_plot == 1:
-            fig = plt.figure()
-            ax = fig.gca(projection='3d')
-            for coords,n in extraction_order_of_nodes.items():
-                x,y,z = coords
-                ax.scatter(x,y,z,'r')
-                ax.text(x,y,z, str(n), fontsize=9)
-            
-            leafs.remove(self.decgraph_best_value_node)
-            for l in [self.decgraph_best_value_node] + leafs:
-                cur = l
-                if cur == self.decgraph_best_value_node:
-                    linestyle='-ob'
-                else:
-                    linestyle='-r'
-                while 1:
-                    try:
-                        next = predecessor.pop(cur)
-                    except KeyError:
-                        break
-                    x = (cur[0], next[0])
-                    y = (cur[1], next[1])
-                    z = (cur[2], next[2])
-                    if cur[1] != next[1]:
-                        ax.plot(x,y,z,linestyle)
-                    else:
-                        ax.plot(x,y,z,'--g')
-                    if next == root:
-                        break
-                    else:
-                        cur = next
-            #x =[2,5,4,7]
-            #y=[1,6,6,7]
-            #z=[7,2,45,6]
-            #ax.plot(x,y,z, '--r')
-            print(indexes)
-            ax.set_xlim(0,self.tot_patterns)
-            ax.set_xlabel('Indexes')
-            ax.set_ylabel('Scaled Entropy')
-            ax.set_zlabel('Cardinality')
-            plt.show()
+        print_taken_patterns=0
+        cur = self.decgraph_best_value_node
+        indexes = []
+        self.solution_cardinality = 0
+        self.solution_rate = 0
+        self.solution_entropy = 0
+        #main loop
+        while 1:
+            try:
+                next = predecessor[cur]
+            except KeyError:
+                break
+            if cur[1] != next[1]:
+                k = cur[0]
+                indexes.append(mapper[k])
+                #indexes.append(k)
+                self.solution_cardinality += 1
+                self.solution_rate += p[k]
+                self.solution_entropy += plog1onp[k]
+                if print_taken_patterns:
+                    print("taken pattern ", k, ", p[k] = ", p[k], "plog1onp[k] = ", plog1onp[k])
+            if next == root:
+                break
+            else:
+                cur = next
+
+        self.solution = self.data.df.ix[indexes]
+        index_series = np.zeros(self.tot_patterns)
+        for i in indexes:
+            index_series[i] = 1
+        self.data.df['decgraph'] = pd.Series(index_series)
+
+        #self.decisiongraph_plot = 0
+        #if self.decisiongraph_plot == 1:
+        #    fig = plt.figure()
+        #    ax = fig.gca(projection='3d')
+        #    for coords,n in extraction_order_of_nodes.items():
+        #        x,y,z = coords
+        #        ax.scatter(x,y,z,'r')
+        #        ax.text(x,y,z, str(n), fontsize=9)
+        #        
+        #    leafs.remove(self.decgraph_best_value_node)
+        #    for l in [self.decgraph_best_value_node] + leafs:
+        #        cur = l
+        #        if cur == self.decgraph_best_value_node:
+        #            linestyle='-ob'
+        #        else:
+        #            linestyle='-r'
+        #        while 1:
+        #            try:
+        #                next = predecessor.pop(cur)
+        #            except KeyError:
+        #                break
+        #            x = (cur[0], next[0])
+        #            y = (cur[1], next[1])
+        #            z = (cur[2], next[2])
+        #            if cur[1] != next[1]:
+        #                ax.plot(x,y,z,linestyle)
+        #            else:
+        #                ax.plot(x,y,z,'--g')
+        #            if next == root:
+        #                break
+        #            else:
+        #                cur = next
+        #                #x =[2,5,4,7]
+        #                #y=[1,6,6,7]
+        #                #z=[7,2,45,6]
+        #                #ax.plot(x,y,z, '--r')
+        #    print(indexes)
+        #    ax.set_xlim(0,self.tot_patterns)
+        #    ax.set_xlabel('Indexes')
+        #    ax.set_ylabel('Scaled Entropy')
+        #    ax.set_zlabel('Cardinality')
+        #    plt.show()
 
     def decgraph_solver_epsilon(self,epsilon):
         """Calculates an epsilon-solution using Dynamic Programming"""

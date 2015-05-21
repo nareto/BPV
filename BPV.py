@@ -18,6 +18,9 @@ class Data():
             self.df = dataframe
         except TypeError:
             pass
+
+    def copy(self):
+        return(Data(self.df.copy()))
     
     def read_csv(self,csvfile, binary=True):
         self.df = pd.read_csv(csvfile,header=None,names=["pattern","p"])
@@ -101,7 +104,7 @@ class BPV:
     def __init__(self,solver_name,data,max_cardinality,max_rate,epsilon=None,time_solver=False,):
         self.solved = False
         self.__all_solvers__ = {"exact": self.exact_solver, "euristic": self.euristic_solver,\
-                                "scaled_exact": self.scaled_exact_solver, "decgraph": self.decgraph_solver,\
+                                 "decgraph": self.decgraph_solver,\
                                 "decgraph_epsilon": self.decgraph_solver_epsilon}
         self.data = data
         self.tot_patterns = len(data.df)
@@ -140,40 +143,23 @@ class BPV:
             print("\nSolver = ", self.solver_name,\
                   "\nEntropy = ", self.solution_entropy, \
                   "\nCardinality = ", self.solution_cardinality,\
-                  "\nRate = ", self.solution_rate)
+                  "\nRate = ", self.solution_rate,\
+                  "\n\n", self.solution)
+            
             if self.time_solver == True:
                 print("Solution time in seconds = ", self.solution_time)
         else:
             print("Problem not solved")
                   
-    def solution_feasibility(self):
-        """Returns -1 if problem is not solved, 0 if solution is feasibile, 1 if it violates the cardinality constraint,\
-        2 if it violates the rate constraint, 3 if it violates both"""
-        ret = 0
-        if self.solved() == 1:
-            if self.solution_cardinality > self.max_cardinality:
-                ret += 1                
-            if self.solution_rate > self.max_rate:
-                ret += 2
-        else:
-            ret = -1
-        return ret
+    def solution_interval_measure(self):
+        """Returns a real number in [0,1], measuring by how much the solution is not an interval"""
+        self.solution.sort_index(by="p",inplace=True,ascending=False)
+        self.solution.sort_index(by="p",ascending=True,inplace=True)
+        idx = pd.Index([j for j in range(len(self.solution))])
+        self.solution.set_index(idx,inplace=True)
 
-    def calculate_rate(self, indexes):
-        rate = 0
-        for i in indexes:
-            rate += self.p[i]
-        return rate
-
-    def calculate_entropy(self, indexes):
-        entropy = 0
-        for i in indexes:
-            entropy += self.plog1onp[i]
-        return entropy
-
-    def calculate_cardinality(self, indexes):
-        return len(indexes)
-    
+        minidx = self.solution.index.min()
+        
     def exact_solver(self):
         """Uses PuLP to calculate [one] exact solution"""
 
@@ -200,55 +186,16 @@ class BPV:
         
         pulp_instance.solve()
         self.solution_entropy = pulp.value(pulp_instance.objective)
-        self.solution_indexes = []
+        indexes = []
         self.solution_cardinality = 0
         self.solution_rate = 0
         for i in range(self.tot_patterns):
             if self.__pulp_variables__[i].value() != 0:
-                self.solution_indexes.append(i)
+                indexes.append(i)
                 self.solution_cardinality += 1
                 self.solution_rate += self.data.df["p"][i]
-
-    def scaled_exact_solver(self,epsilon):
-        scaling_factor = epsilon*self.plog1onp[-1]/self.tot_patterns
-        scaled_plog1onp = np.zeros(self.tot_patterns)
-        for i in range(self.tot_patterns):
-            scaled_plog1onp[i] = 1 + int(self.plog1onp[i]/scaling_factor)
-
-        pulp_instance = pulp.LpProblem(" (BPV) ",pulp.LpMaximize)
+        self.solution = self.data.df.ix[indexes]
         
-        self.__pulp_variables__ = []
-        for i in range(self.tot_patterns):
-            self.__pulp_variables__.append(pulp.LpVariable("x_%d" % i,0,1,pulp.LpInteger))
-        
-        cdotp = 0
-        for i in range(self.tot_patterns):
-            cdotp += scaled_plog1onp[i]*self.__pulp_variables__[i] #linear combination to optimize
-            
-        pulp_instance += cdotp, "Entropy of the solution"
-        
-        constraint_cardinality = 0
-        constraint_rate = 0
-        for i in range(self.tot_patterns):
-            constraint_cardinality += self.__pulp_variables__[i]
-            constraint_rate += self.p[i]*self.__pulp_variables__[i]
-        
-        pulp_instance += constraint_cardinality <= self.max_cardinality, "Cardinality constraint"
-        pulp_instance += constraint_rate <= self.max_rate, "Rate constraint"
-        
-        pulp_instance.solve()
-        
-        self.solution_indexes = []
-        self.solution_cardinality = 0
-        self.solution_rate = 0
-        self.solution_entropy = 0
-        for i in range(self.tot_patterns):
-            if self.__pulp_variables__[i].value() != 0:
-                self.solution_entropy += self.plog1onp[i]
-                self.solution_indexes.append(i)
-                self.solution_cardinality += 1
-                self.solution_rate += self.p[i]
-
     def euristic_solver(self):
         """The solution self.solution_indexes is defined as a level curve of sampled_euristic_cost, that is
         self.solution_indexes = {x | sampled_euristic_cost(x) > c} for some c which is determined by the constraints.
@@ -274,8 +221,8 @@ class BPV:
             sampled_euristic_cost[i] = euristic_unitary_cost(p[i])
 
         greatest_values = []
-        self.solution_indexes = []   #this will be the list of indexes in {1,...,self.tot_patterns} that yield the solution
-        self.solution_cardinality = 0  #we use this to keep track of how many patterns we're adding to self.solution_indexes
+        indexes = []   #this will be the list of indexes in {1,...,self.tot_patterns} that yield the solution
+        self.solution_cardinality = 0  #we use this to keep track of how many patterns we're adding to indexes
         self.solution_rate = 0  #we use this to ensure that the so far chosen patterns don't exceed the maximum rate
         self.solution_entropy = 0
         search_space = [j for j in range(self.tot_patterns)]
@@ -294,9 +241,11 @@ class BPV:
             else:
                 self.solution_rate += p[arg_max]
                 self.solution_entropy += plog1onp[arg_max]#p[arg_max]*np.log(1/p[arg_max])
-                self.solution_indexes.append(arg_max)
+                indexes.append(arg_max)
                 self.solution_cardinality += 1
+        self.solution = self.data.df.ix[indexes]
 
+                
     def decgraph_solver(self):
         """Calculates solution using decision graph"""
 
@@ -353,31 +302,28 @@ class BPV:
         def check_path(coords, print_taken_patterns=0):
             cur = coords
             indexes = []
-            cardinality = 0
-            rate = 0
-            entropy = 0
+            self.solution_cardinality = 0
+            self.solution_rate = 0
+            self.solution_entropy = 0
             while 1:
                 try:
                     next = predecessor[cur]
                 except KeyError:
                     break
                 if cur[1] != next[1]:
-                    k = self.tot_patterns -1 - cur[0]
-                    #k = cur[0]
+                    k = cur[0]
                     indexes.append(k)
-                    cardinality += 1
-                    rate += p[cur[0]]
-                    #rate += p[k]
-                    entropy += plog1onp[cur[0]]
-                    #entropy += plog1onp[k]
+                    self.solution_cardinality += 1
+                    self.solution_rate += p[k]
+                    self.solution_entropy += plog1onp[k]
                     if print_taken_patterns:
-                        print("taken pattern ", k, ", p[k] = ", p[k], "scaled plog1onp[k] = ", plog1onp[k])
+                        print("taken pattern ", k, ", p[k] = ", p[k], "plog1onp[k] = ", plog1onp[k])
                 if next == root:
                     break
                 else:
                     cur = next
-            return(indexes,entropy,rate,cardinality)
-
+            self.solution=self.data.df.ix[indexes]
+            
         def fchild1():
             pass
         
@@ -385,17 +331,14 @@ class BPV:
             pass
 
         while not not visitlist:
-            #ipdb.set_trace()
             cur = visitlist.pop()
             k,mu,nu = cur
             if k+1 < self.tot_patterns and alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value:
                 child1 = (k+1,mu,nu)
                 child2 = (k+1, mu+p[k+1], nu+1)
-                #add_child(cur, child1, alpha[cur],1)
                 if mu + p[k+1] <= self.max_rate:
                     add_child(cur, child1, alpha[cur])
                     fchild1()
-                    #add_child(cur, child2, alpha[cur] + plog1onp[k+1],2)
                     if nu + 1 <= self.max_cardinality:
                         add_child(cur, child2, alpha[cur] + plog1onp[k+1])
                         fchild2()
@@ -404,9 +347,7 @@ class BPV:
                 visitlist = next_visitlist
                 next_visitlist = []
 
-        self.solution_indexes, self.solution_entropy,\
-            self.solution_rate, self.solution_cardinality = check_path(self.decgraph_best_value_node)
-        self.solution_indexes.sort()
+        check_path(self.decgraph_best_value_node)
             
         self.decisiongraph_plot = 0
         if self.decisiongraph_plot == 1:
@@ -444,7 +385,7 @@ class BPV:
             #y=[1,6,6,7]
             #z=[7,2,45,6]
             #ax.plot(x,y,z, '--r')
-            print(self.solution_indexes)
+            print(indexes)
             ax.set_xlim(0,self.tot_patterns)
             ax.set_xlabel('Indexes')
             ax.set_ylabel('Scaled Entropy')

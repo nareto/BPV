@@ -127,6 +127,7 @@ class BPV:
                   "\nEntropy = ", self.solution_entropy, \
                   "\nCardinality = ", self.solution_cardinality,\
                   "\nRate = ", self.solution_rate,\
+                  "\nInterval Measure = ", self.solution_interval_measure(),\
                   "\n\n", self.data.df[self.data.df[self.solver_name] == 1])
             
             if self.time_solver == True:
@@ -141,7 +142,12 @@ class BPV:
         idx = pd.Index([j for j in range(len(self.solution))])
         self.solution.set_index(idx,inplace=True)
 
-        minidx = self.solution.index.min()
+        solution = self.data.df[self.data.df[self.solver_name] != 0]
+        minidx = solution.index.min()
+        maxidx = solution.index.max()
+        holes = self.data.df[self.data.df[self.solver_name] == 0].ix[minidx:maxidx]
+        return(0.5*len(holes)/(maxidx - minidx))
+        
         
     def pulp_solver(self):
         """Uses PuLP to calculate [one] pulp solution"""
@@ -248,9 +254,8 @@ class BPV:
         root = (-1,0,0)
         alpha[root] = 0
         visitlist = deque()
-        visitlist.append(root)
+        visitlist.appendleft(root)
         next_visitlist = deque()
-
         #graph_dimensions = (self.tot_patterns, self.max_rate, self.max_cardinality)
         #leafs = []
         self.decgraph_len_visitlist = [1]
@@ -260,9 +265,12 @@ class BPV:
         for i in np.arange(self.tot_patterns - 2, -1, -1):
             reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + plog1onp[i]
 
-            
-        def add_child(parent, child, candidate_new_entropy):
+        def add_child(parent, arc_type, candidate_new_entropy):
             "Looks at child and if feasible adds it to next_visitlist"
+            if arc_type == 1:
+                child = (k+1,mu,nu)
+            else:
+                child = (k+1, mu+p[k+1], nu+1)
             add_child = 0
             add_to_next_visitlist = 0
             try:
@@ -275,7 +283,11 @@ class BPV:
                 predecessor[child] = parent
                 alpha[child] = candidate_new_entropy
                 if add_to_next_visitlist == 1:
-                    next_visitlist.append(child)
+                    #if arc_type == 1:
+                    #    next_visitlist.appendleft(child)
+                    #else:
+                    #    next_visitlist.append(child)
+                    next_visitlist.append(child)                        
                 if alpha[child] > self.decgraph_best_value:
                     self.decgraph_best_value = alpha[child]
                     self.decgraph_best_value_node = child
@@ -289,22 +301,21 @@ class BPV:
             pass
         
         #main loop
-        while not not visitlist:
+        while visitlist:
             cur = visitlist.pop()
             k,mu,nu = cur
-            if k+1 < self.tot_patterns and alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value:
-                child1 = (k+1,mu,nu)
-                child2 = (k+1, mu+p[k+1], nu+1)
-                if mu + p[k+1] <= self.max_rate:
-                    add_child(cur, child1, alpha[cur])
-                    #fchild1()
-                    if nu + 1 <= self.max_cardinality:
-                        add_child(cur, child2, alpha[cur] + plog1onp[k+1])
-                        #fchild2()
+            if k+1 < self.tot_patterns and\
+               alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
+               mu + p[k+1] <= self.max_rate:
+                add_child(cur, 1, alpha[cur])
+                #fchild1()
+                if nu + 1 <= self.max_cardinality:
+                    add_child(cur, 2, alpha[cur] + plog1onp[k+1])
+                    #fchild2()
             if not visitlist:
                 self.decgraph_len_visitlist.append(len(next_visitlist))
                 visitlist = next_visitlist
-                next_visitlist = []
+                next_visitlist = deque()
 
         print_taken_patterns=0
         cur = self.decgraph_best_value_node

@@ -11,23 +11,29 @@ import timeit
 def dec_to_bin(number):
     return(bin(int(number))[2:])
 
-def read_csv(csvfile, binary=True):
-    data = pd.read_csv(csvfile,header=None,names=["pattern","p"])
-    data["plog1onp"] = data["p"]*np.log(1/data["p"])
-    if not binary:
-        data["pattern"] = data["pattern"].map(dec_to_bin)
-    return(data)
+class Data():
+    def __init__(self,dataframe=None):
+        try:
+            l = len(dataframe)
+            self.df = dataframe
+        except TypeError:
+            pass
+    
+    def read_csv(self,csvfile, binary=True):
+        self.df = pd.read_csv(csvfile,header=None,names=["pattern","p"])
+        self.df["plog1onp"] = self.df["p"]*np.log(1/self.df["p"])
+        if not binary:
+            self.df["pattern"] = self.df["pattern"].map(dec_to_bin)
+        return(self.df)
 
+    def data_head(self,rows=10):
+        """Returns a DataFrame copy of the first rows rows of self.df"""
 
-def data_head(data,rows=10):
-    """data is a pandas DataFrame with columns "pattern", "p" and "plog1onp" """
-
-    data_head = pd.DataFrame(data.copy()[["pattern","p"]][:rows])
-    sum  = data_head["p"].sum()
-    data_head["p"] /= sum
-    data_head["plog1onp"] = data_head["p"]*np.log(1/data_head["p"])
-    #print(data_head, data_head["p"].sum())
-    return(data_head)
+        data_head = Data(pd.DataFrame(self.df[["pattern","p"]][:rows].copy()))
+        sum  = data_head.df["p"].sum()
+        data_head.df["p"] /= sum
+        data_head.df["plog1onp"] = data_head.df["p"]*np.log(1/data_head.df["p"])
+        return(data_head)
 
 def relative_error(approximated_instance, exact_instance):
     if approximated_instance.solved() and exact_instance.solved():
@@ -92,26 +98,20 @@ def is_non_increasing_vector(vector):
             
 
 class BPV:
-    def __init__(self,solver_name,tot_patterns,max_cardinality,max_rate,p,epsilon=None,time_solver=False,):
-        if len(p) != tot_patterns:
-            err = "len(p) == tot_patterns must hold"
-            raise RuntimeError(err)
-        else:
-            self.solved = False
-            self.__all_solvers__ = {"exact": self.exact_solver, "euristic": self.euristic_solver,\
-                                    "scaled_exact": self.scaled_exact_solver, "decgraph": self.decgraph_solver,\
-                                    "decgraph_epsilon": self.decgraph_solver_epsilon}
-            self.tot_patterns = tot_patterns
-            self.max_cardinality = max_cardinality
-            self.max_rate = max_rate
-            self.p = p
-            self.plog1onp = self.p*np.log(1/self.p)
-            self.tot_entropy = self.plog1onp.sum()
-            self.epsilon = epsilon
+    def __init__(self,solver_name,data,max_cardinality,max_rate,epsilon=None,time_solver=False,):
+        self.solved = False
+        self.__all_solvers__ = {"exact": self.exact_solver, "euristic": self.euristic_solver,\
+                                "scaled_exact": self.scaled_exact_solver, "decgraph": self.decgraph_solver,\
+                                "decgraph_epsilon": self.decgraph_solver_epsilon}
+        self.data = data
+        self.tot_patterns = len(data.df)
+        self.max_cardinality = max_cardinality
+        self.max_rate = max_rate
+        self.epsilon = epsilon
 
-            self.solver_name = solver_name
-            self.set_solver()
-            self.time_solver = time_solver
+        self.solver_name = solver_name
+        self.set_solver()
+        self.time_solver = time_solver
 
 
     def set_solver(self):
@@ -185,7 +185,7 @@ class BPV:
         
         cdotp = 0
         for i in range(self.tot_patterns):
-            cdotp += self.plog1onp[i]*self.__pulp_variables__[i] #linear combination to optimize
+            cdotp += self.data.df["plog1onp"][i]*self.__pulp_variables__[i] #linear combination to optimize
             
         pulp_instance += cdotp, "Entropy of the solution"
         
@@ -193,7 +193,7 @@ class BPV:
         constraint_rate = 0
         for i in range(self.tot_patterns):
             constraint_cardinality += self.__pulp_variables__[i]
-            constraint_rate += self.p[i]*self.__pulp_variables__[i]
+            constraint_rate += self.data.df["p"][i]*self.__pulp_variables__[i]
         
         pulp_instance += constraint_cardinality <= self.max_cardinality, "Cardinality constraint"
         pulp_instance += constraint_rate <= self.max_rate, "Rate constraint"
@@ -207,7 +207,7 @@ class BPV:
             if self.__pulp_variables__[i].value() != 0:
                 self.solution_indexes.append(i)
                 self.solution_cardinality += 1
-                self.solution_rate += self.p[i]
+                self.solution_rate += self.data.df["p"][i]
 
     def scaled_exact_solver(self,epsilon):
         scaling_factor = epsilon*self.plog1onp[-1]/self.tot_patterns
@@ -257,6 +257,13 @@ class BPV:
         sampled_euristic_cost we store it's index in self.solution_indexes[i], i.e. sampled_euristic_cost[self.solution_indexes[i]] is the
         i-th greatest value of sampled_euristic_cost."""
 
+        self.data.df.sort_index(by="p",ascending=False,inplace=True)
+        idx = pd.Index([j for j in range(len(self.data.df))])
+        self.data.df.set_index(idx,inplace=True)
+
+        p = self.data.df["p"]
+        plog1onp = self.data.df["plog1onp"]
+
         def euristic_unitary_cost(value):
             num = -value*np.log(value)
             den = max(1/self.max_cardinality, value/self.max_rate)
@@ -264,7 +271,7 @@ class BPV:
 
         sampled_euristic_cost = np.zeros(self.tot_patterns)
         for i in range(self.tot_patterns):
-            sampled_euristic_cost[i] = euristic_unitary_cost(self.p[i])
+            sampled_euristic_cost[i] = euristic_unitary_cost(p[i])
 
         greatest_values = []
         self.solution_indexes = []   #this will be the list of indexes in {1,...,self.tot_patterns} that yield the solution
@@ -282,23 +289,27 @@ class BPV:
             #arg_max = greatest_values[i] if greatest_values[i] != search_space[0] else search_space[0]
             arg_max = greatest_values[i]
             search_space.remove(arg_max)
-            if self.solution_rate + self.p[arg_max] > self.max_rate:
+            if self.solution_rate + p[arg_max] > self.max_rate:
                 break
             else:
-                self.solution_rate += self.p[arg_max]
-                self.solution_entropy += self.plog1onp[arg_max]#self.p[arg_max]*np.log(1/self.p[arg_max])
+                self.solution_rate += p[arg_max]
+                self.solution_entropy += plog1onp[arg_max]#p[arg_max]*np.log(1/p[arg_max])
                 self.solution_indexes.append(arg_max)
                 self.solution_cardinality += 1
 
     def decgraph_solver(self):
         """Calculates solution using decision graph"""
 
-        #print(type(self.p))
-        #self.p.sort(reverse=True)
-        #ipdb.set_trace()
+        self.data.df.sort_index(by="p",ascending=True,inplace=True)
+        idx = pd.Index([j for j in range(len(self.data.df))])
+        self.data.df.set_index(idx,inplace=True)
 
-        self.p = self.p[::-1]#TODO: se non lo rigiro (e cambio check_path) funziona
-        self.plog1onp = self.plog1onp[::-1]
+        #p = self.data.df["p"]
+        #plog1onp = self.data.df["plog1onp"]
+        #indexing is much faster on a numpy array than on a pandas dataframe:
+        p = np.array(self.data.df["p"])
+        plog1onp = np.array(self.data.df["plog1onp"])
+
         alpha = {}
         predecessor = {}
         self.decgraph_best_value = -1
@@ -313,27 +324,13 @@ class BPV:
         self.decgraph_len_visitlist = [1]
         
         reverse_cumulative_plog1onp = np.zeros(self.tot_patterns)
-        reverse_cumulative_plog1onp[self.tot_patterns - 1] = self.plog1onp[self.tot_patterns - 1]
+        reverse_cumulative_plog1onp[self.tot_patterns - 1] = plog1onp[self.tot_patterns - 1]
         for i in np.arange(self.tot_patterns - 2, -1, -1):
-            reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + self.plog1onp[i]
+            reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + plog1onp[i]
 
-        #cumulative_plog1onp = np.zeros(self.tot_patterns)
-        #cumulative_plog1onp[self.tot_patterns - 1] = self.plog1onp[self.tot_patterns - 1]
-        #for i in np.arange(self.tot_patterns - 2, -1, -1):
-        #    cumulative_plog1onp[i] = cumulative_plog1onp[i+1] + self.plog1onp[i]
             
-        def fchild1():
-            pass
-        
-        def fchild2():
-            pass
-            
-        def add_child(parent, child, candidate_new_entropy,arctype):
+        def add_child(parent, child, candidate_new_entropy):
             "Looks at child and if feasible adds it to next_visitlist"
-            if arctype == 1:
-                fchild1()
-            else:
-                fchild2()
             add_child = 0
             add_to_next_visitlist = 0
             try:
@@ -369,17 +366,23 @@ class BPV:
                     #k = cur[0]
                     indexes.append(k)
                     cardinality += 1
-                    rate += self.p[cur[0]]
-                    #rate += self.p[k]
-                    entropy += self.plog1onp[cur[0]]
-                    #entropy += self.plog1onp[k]
+                    rate += p[cur[0]]
+                    #rate += p[k]
+                    entropy += plog1onp[cur[0]]
+                    #entropy += plog1onp[k]
                     if print_taken_patterns:
-                        print("taken pattern ", k, ", p[k] = ", self.p[k], "scaled plog1onp[k] = ", self.plog1onp[k])
+                        print("taken pattern ", k, ", p[k] = ", p[k], "scaled plog1onp[k] = ", plog1onp[k])
                 if next == root:
                     break
                 else:
                     cur = next
             return(indexes,entropy,rate,cardinality)
+
+        def fchild1():
+            pass
+        
+        def fchild2():
+            pass
 
         while not not visitlist:
             #ipdb.set_trace()
@@ -387,13 +390,15 @@ class BPV:
             k,mu,nu = cur
             if k+1 < self.tot_patterns and alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value:
                 child1 = (k+1,mu,nu)
-                child2 = (k+1, mu+self.p[k+1], nu+1)
+                child2 = (k+1, mu+p[k+1], nu+1)
                 #add_child(cur, child1, alpha[cur],1)
-                if mu + self.p[k+1] <= self.max_rate:
-                    add_child(cur, child1, alpha[cur],1)
-                    #add_child(cur, child2, alpha[cur] + self.plog1onp[k+1],2)
+                if mu + p[k+1] <= self.max_rate:
+                    add_child(cur, child1, alpha[cur])
+                    fchild1()
+                    #add_child(cur, child2, alpha[cur] + plog1onp[k+1],2)
                     if nu + 1 <= self.max_cardinality:
-                        add_child(cur, child2, alpha[cur] + self.plog1onp[k+1],2)
+                        add_child(cur, child2, alpha[cur] + plog1onp[k+1])
+                        fchild2()
             if not visitlist:
                 self.decgraph_len_visitlist.append(len(next_visitlist))
                 visitlist = next_visitlist

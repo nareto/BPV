@@ -17,13 +17,15 @@ N=5
 W=0.025  #rate
 
 prbl = BPV.BPV("decgraph",data_head,N,W,time_solver=False)
-cProfile.run('prbl.solve()',sort=1)
-prbl.pprint_solution()
+prbl.solve()
+#cProfile.run('prbl.solve()',sort=1)
+#prbl.pprint_solution()
 
 prbl = BPV.BPV("pulp",data_head,N,W,time_solver=False)
 prbl.solve()
-prbl.pprint_solution()
+#prbl.pprint_solution()
 
+print(data_head.df)
 #
 #prbl = BPV.BPV("euristic",data_head,N,W,time_solver=False)
 #prbl.solve()

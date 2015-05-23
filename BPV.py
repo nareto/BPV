@@ -96,6 +96,7 @@ class BPV:
         self.__all_solvers__ = {"pulp": self.pulp_solver, "euristic": self.euristic_solver,\
                                  "decgraph": self.decgraph_solver,\
                                 "decgraph_epsilon": self.decgraph_solver_epsilon}
+        self.multiple_solutions = 0
         self.data = data
         self.tot_patterns = len(data.df)
         self.max_cardinality = max_cardinality
@@ -127,21 +128,32 @@ class BPV:
             print("\nSolver = ", self.solver_name,\
                   "\nEntropy = ", self.solution_entropy, \
                   "\nCardinality = ", self.solution_cardinality,\
-                  "\nRate = ", self.solution_rate,\
-                  "\nInterval Measure = ", self.solution_interval_measure(),\
-                  "\n\n", self.data.df[self.data.df[self.solver_name] == 1])
-            
+                  "\nRate = ", self.solution_rate)
+            if self.multiple_solutions == 0:
+                print("\n\n", self.data.df[self.data.df[self.solver_name] == 1])
+                i = 0
+                ipdb.set_trace()
+                for sol in self.solution:
+                    print("\n Solution {0} Interval Measure = ".format(i),\
+                          self.solution_interval_measure(i))
+                    i+=1
+            else:
+                print("\n{0} equivalent solutions found".format(self.multiple_solutions))
             if self.time_solver == True:
                 print("Solution time in seconds = ", self.solution_time)
         else:
             print("Problem not solved")
                   
-    def solution_interval_measure(self):
+    def solution_interval_measure(self,index=None):
         """Returns a real number in [0,1], measuring by how much the solution is not an interval"""
-        self.solution.sort_index(by="p",inplace=True,ascending=False)
-        self.solution.sort_index(by="p",ascending=True,inplace=True)
-        idx = pd.Index([j for j in range(len(self.solution))])
-        self.solution.set_index(idx,inplace=True)
+        if index != None:
+            sol = self.solution[index]
+        else:
+            sol = self.solution
+        sol.sort_index(by="p",inplace=True,ascending=False)
+        sol.sort_index(by="p",ascending=True,inplace=True)
+        idx = pd.Index([j for j in range(len(sol))])
+        sol.set_index(idx,inplace=True)
 
         solution = self.data.df[self.data.df[self.solver_name] != 0]
         minidx = solution.index.min()
@@ -337,8 +349,12 @@ class BPV:
                 visitlist = next_visitlist
                 next_visitlist = deque()
 
-        self.multiple_solutions = 0
-        solutions_list = []
+        for child,parlist in predecessor.items():
+            k = child[0]
+            for par in parlist:
+                if par[0] > k:
+                    print(child,parlist)
+                    
         def solutions(node,first_choice=None):
             """Returns list of paths that end in node"""
 
@@ -348,43 +364,57 @@ class BPV:
                 if len(predecessor[cur]) > 1:
                     if first_choice == 0:
                         next = predecessor[cur][0]
-                        first_choice = None
                     elif first_choice == 1:
                         next = predecessor[cur][1]
-                        first_choice = None
                     else:
                         self.multiple_solutions += 1
                         s0 = solutions(cur,0)
                         solutions_list.append(indexes+s0)
                         s1 = solutions(cur,1)
                         solutions_list.append(indexes+s1)
+                        break
                 else:
                     next = predecessor[cur][0]
                 if cur[1] > 0:
+                    print(cur,next,first_choice)
                     if cur[1] != next[1]:
                         indexes.append(mapper[cur[0]])
+                        if first_choice in (None,0):
+                            self.solution_cardinality += 1
+                            self.solution_rate += p[cur[0]]
+                            self.solution_entropy += plog1onp[cur[0]]
+                    first_choice = None
                     cur = next
                 else:
                     if self.multiple_solutions == 0:
                         solutions_list.append(indexes)
                     return(indexes)
 
+        #ipdb.set_trace()
+        self.multiple_solutions = 0
+        solutions_list = []
+        self.solution_cardinality = 0
+        self.solution_rate = 0
+        self.solution_entropy = 0
         solutions(self.decgraph_best_value_node)
-        #print(solutions_list)
-        #for sol in solutions_list:
-        #    print("\n\nsolution:\n",sol)
-
-        #self.solution = self.data.df.ix[indexes]
-        i = 0
-        for sol in solutions_list:
+        
+        if self.multiple_solutions == 0:
+            idx = solutions_list[0]
+            self.solution = self.data.df.ix[idx]
             index_series = np.zeros(self.tot_patterns)
-            for j in sol:
+            for j in idx:
                 index_series[j] = 1
-            colname = 'decgraph'
-            if i > 0:
-                colname += str(i)
-            self.data.df[colname] = pd.Series(index_series)
-            i += 1
+            self.data.df['decgraph'] = pd.Series(index_series)
+        else:
+            i = 0
+            self.solution = []
+            for sol in solutions_list:
+                self.solution.append(self.data.df.ix[sol])
+                index_series = np.zeros(self.tot_patterns)
+                for j in sol:
+                    index_series[j] = 1
+                self.data.df['decgraph' + str(i)] = pd.Series(index_series)
+                i += 1
         
         #self.solution = self.data.df.ix[indexes]
         #index_series = np.zeros(self.tot_patterns)

@@ -97,6 +97,7 @@ class BPV:
                                  "decgraph": self.decgraph_solver,\
                                 "decgraph_epsilon": self.decgraph_solver_epsilon}
         self.multiple_solutions = 0
+        self.selected_solution = None
         self.data = data
         self.tot_patterns = len(data.df)
         self.max_cardinality = max_cardinality
@@ -129,36 +130,39 @@ class BPV:
                   "\nEntropy = ", self.solution_entropy, \
                   "\nCardinality = ", self.solution_cardinality,\
                   "\nRate = ", self.solution_rate)
-            if self.multiple_solutions == 0:
-                print("\n\n", self.data.df[self.data.df[self.solver_name] == 1])
-                i = 0
-                ipdb.set_trace()
-                for sol in self.solution:
-                    print("\n Solution {0} Interval Measure = ".format(i),\
-                          self.solution_interval_measure(i))
-                    i+=1
-            else:
+            if self.multiple_solutions != 0:
                 print("\n{0} equivalent solutions found".format(self.multiple_solutions))
+                i = 0
+                for sol in self.solution:
+                    self.selected_solution = i
+                    print("\n Solution {0} Interval Measure = ".format(i),\
+                          self.solution_interval_measure())
+                    i+=1
+            #else:
+            #    print("\n\n", self.data.df[self.data.df[self.solver_name] == 1])
             if self.time_solver == True:
                 print("Solution time in seconds = ", self.solution_time)
         else:
             print("Problem not solved")
                   
-    def solution_interval_measure(self,index=None):
+    def solution_interval_measure(self):
         """Returns a real number in [0,1], measuring by how much the solution is not an interval"""
+        index = self.selected_solution
         if index != None:
             sol = self.solution[index]
+            name = self.solver_name + str(index)
         else:
             sol = self.solution
+            name = self.solver_name
         sol.sort_index(by="p",inplace=True,ascending=False)
         sol.sort_index(by="p",ascending=True,inplace=True)
         idx = pd.Index([j for j in range(len(sol))])
         sol.set_index(idx,inplace=True)
 
-        solution = self.data.df[self.data.df[self.solver_name] != 0]
+        solution = self.data.df[self.data.df[name] != 0]
         minidx = solution.index.min()
         maxidx = solution.index.max()
-        holes = self.data.df[self.data.df[self.solver_name] == 0].ix[minidx:maxidx]
+        holes = self.data.df[self.data.df[name] == 0].ix[minidx:maxidx]
         return(0.5*len(holes)/(maxidx - minidx))
         
         
@@ -201,7 +205,7 @@ class BPV:
         for i in indexes:
             index_series[i] = 1
         self.data.df['pulp'] = pd.Series(index_series)
-
+        self.selected_solution = 0
         
     def euristic_solver(self):
         """The solution self.solution_indexes is defined as a level curve of sampled_euristic_cost, that is
@@ -243,7 +247,7 @@ class BPV:
         for i in indexes:
             index_series[i] = 1
         self.data.df['euristic'] = pd.Series(index_series)
-        
+        self.selected_solution = 0        
                  
     def decgraph_solver(self):
         """Calculates solution using decision graph"""
@@ -392,6 +396,7 @@ class BPV:
 
         #ipdb.set_trace()
         self.multiple_solutions = 0
+        self.selected_solution = 0        
         solutions_list = []
         self.solution_cardinality = 0
         self.solution_rate = 0
@@ -415,7 +420,7 @@ class BPV:
                     index_series[j] = 1
                 self.data.df['decgraph' + str(i)] = pd.Series(index_series)
                 i += 1
-        
+
         #self.solution = self.data.df.ix[indexes]
         #index_series = np.zeros(self.tot_patterns)
         #for i in indexes:
@@ -608,7 +613,7 @@ class BPV:
         self.solution_indexes , self.solution_entropy,\
             self.solution_rate, self.solution_cardinality = check_path(self.decgraph_best_value_node,1)
         self.solution_indexes.sort()
-            
+        self.selected_solution = 0        
         print("\nin table: ", self.decgraph_best_value , "  calculated (scaled): ", 1 + int(self.solution_entropy/scaling_factor),\
               " calculated: ", self.solution_entropy)
 

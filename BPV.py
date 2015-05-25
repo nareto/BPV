@@ -40,6 +40,28 @@ class Data():
         data_head.df["plog1onp"] = data_head.df["p"]*np.log(1/data_head.df["p"])
         return(data_head)
 
+def distance_solutions(sol1, sol2):
+    sup = 0
+    argsup = -1
+    i = 0
+    #ipdb.set_trace()
+    for value1 in sol1:
+        num = sol1[i] - sol2[i]
+        if num == 0:
+            i+=1
+            continue
+        else:
+            den = 1
+            for value2 in sol2:
+                den += value1 - value2
+            value1dist = num/den
+            if value1dist > sup:
+                sup = value1dist
+                argsup = i
+            i+=1
+    return(sup,argsup)
+    
+    
 def relative_error(approximated_instance, exact_instance):
     if approximated_instance.solved() and exact_instance.solved():
         return abs((exact_instance.solution_entropy() - approximated_instance.solution_entropy())/exact_instance.solution_entropy())
@@ -203,8 +225,8 @@ class BPV:
         self.solution = self.data.df.ix[indexes]
         index_series = np.zeros(self.tot_patterns)
         for i in indexes:
-            index_series[i] = 1
-        self.data.df['pulp'] = pd.Series(index_series)
+            index_series[i] = True
+        self.data.df['pulp'] = pd.Series(index_series,dtype='bool')
         self.selected_solution = 0
         
     def euristic_solver(self):
@@ -245,8 +267,8 @@ class BPV:
         self.solution = self.data.df.ix[indexes]
         index_series = np.zeros(self.tot_patterns)
         for i in indexes:
-            index_series[i] = 1
-        self.data.df['euristic'] = pd.Series(index_series)
+            index_series[i] = True
+        self.data.df['euristic'] = pd.Series(index_series,dtype='bool')
         self.selected_solution = 0        
                  
     def decgraph_solver(self):
@@ -264,12 +286,12 @@ class BPV:
         p = np.array(df["p"])
         plog1onp = np.array(df["plog1onp"])
 
-        alpha = {}
-        predecessor = {}
+        self.alpha = {}
+        self.predecessor = {}
         self.decgraph_best_value = -1
         self.decgraph_best_value_node = None
         root = (-1,0,0)
-        alpha[root] = 0
+        self.alpha[root] = 0
         visitlist = deque()
         visitlist.appendleft(root)
         next_visitlist = deque()
@@ -288,46 +310,46 @@ class BPV:
             k,mu,nu = parent
             if arc_type == 1:
                 child = (k+1,mu,nu)
-                candidate_new_entropy = alpha[cur]
+                candidate_new_entropy = self.alpha[cur]
             else:
                 child = (k+1, mu+p[k+1], nu+1)
-                candidate_new_entropy = alpha[cur] + plog1onp[k+1]
-            add_child = 1
-            add_to_next_visitlist = 0
-            equivalent_paths = 0
+                candidate_new_entropy = self.alpha[cur] + plog1onp[k+1]
+            add_child = True
+            add_to_next_visitlist = False
+            equivalent_paths = False
             #try:
-            #    if candidate_new_entropy > alpha[child]: #Bellman condition
+            #    if candidate_new_entropy > self.alpha[child]: #Bellman condition
             #        add_child = 1
             #except KeyError:
             #    add_child = 1
             #    add_to_next_visitlist = 1
-            #    if candidate_new_entropy == alpha[child]:
+            #    if candidate_new_entropy == self.alpha[child]:
             #        equivalent_paths = 1
-            if child in alpha.keys():
-                if candidate_new_entropy < alpha[child]:
-                    add_child = 0
-                elif candidate_new_entropy == alpha[child]:
-                    equivalent_paths = 1
+            if child in self.alpha.keys():
+                if candidate_new_entropy < self.alpha[child]:
+                    add_child = False
+                elif candidate_new_entropy == self.alpha[child]:
+                    equivalent_paths = True
             else:
-                add_to_next_visitlist = 1
+                add_to_next_visitlist = True
             if add_child == 1:
-                if equivalent_paths == 1:
+                if equivalent_paths == True:
                     if arc_type == 1:
-                        predecessor[child] = [parent] + predecessor[child]
+                        self.predecessor[child] = [parent] + self.predecessor[child]
                     elif arc_type == 2:
-                        predecessor[child] = predecessor[child] + [parent]
+                        self.predecessor[child] = self.predecessor[child] + [parent]
                 else:
-                    predecessor[child] = [parent]
-                    alpha[child] = candidate_new_entropy
-                if add_to_next_visitlist == 1:
+                    self.predecessor[child] = [parent]
+                    self.alpha[child] = candidate_new_entropy
+                if add_to_next_visitlist == True:
                     #if arc_type == 1:
                     #    next_visitlist.appendleft(child)
                     #else:
                     #    next_visitlist.append(child)
                     #visitlist.append(child)
                     next_visitlist.append(child)
-                if alpha[child] > self.decgraph_best_value:
-                    self.decgraph_best_value = alpha[child]
+                if self.alpha[child] > self.decgraph_best_value:
+                    self.decgraph_best_value = self.alpha[child]
                     self.decgraph_best_value_node = child
                 #if is_boundary_cell(child):
                 #    leafs.append(child)
@@ -348,7 +370,7 @@ class BPV:
             cur = visitlist.popleft()
             k,mu,nu = cur
             if k+1 < self.tot_patterns and\
-               alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
+               self.alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
                mu + p[k+1] <= self.max_rate:
                 add_child(cur, 1)
                 #fchild1()
@@ -360,11 +382,11 @@ class BPV:
                 visitlist = next_visitlist
                 next_visitlist = deque()
 
-        for child,parlist in predecessor.items():
-            k = child[0]
-            for par in parlist:
-                if par[0] > k:
-                    print(child,parlist)
+        #for child,parlist in self.predecessor.items():
+        #    k = child[0]
+        #    for par in parlist:
+        #        if par[0] > k:
+        #            print(child,parlist)
                     
         def solutions(node,first_choice=None):
             """Returns list of paths that end in node"""
@@ -372,11 +394,11 @@ class BPV:
             indexes = []
             cur = node
             while 1:
-                if len(predecessor[cur]) > 1:
+                if len(self.predecessor[cur]) > 1:
                     if first_choice == 0:
-                        next = predecessor[cur][0]
+                        next = self.predecessor[cur][0]
                     elif first_choice == 1:
-                        next = predecessor[cur][1]
+                        next = self.predecessor[cur][1]
                     else:
                         if self.multiple_solutions == None:
                             self.multiple_solutions = 2
@@ -388,9 +410,8 @@ class BPV:
                         solutions_list.append(indexes+s1)
                         break
                 else:
-                    next = predecessor[cur][0]
+                    next = self.predecessor[cur][0]
                 if cur[1] > 0:
-                    print(cur,next,first_choice)
                     if cur[1] != next[1]:
                         indexes.append(mapper[cur[0]])
                         if first_choice in (None,0):
@@ -403,38 +424,7 @@ class BPV:
                     if self.multiple_solutions == None:
                         solutions_list.append(indexes)
                     return(indexes)
-        
 
-        #def add_to_solution(node):
-        #    self.solution_cardinality += 1
-        #    self.solution_rate += p[cur[0]]
-        #    self.solution_entropy += plog1onp[cur[0]]
-        #        
-        #def solutions(node):
-        #    """Returns list of paths that end in node"""
-        #
-        #    indexes = []
-        #    cur = node
-        #    while 1:
-        #        rec = 0
-        #        if len(predecessor[cur]) > 1:
-        #            self.multiple_solutions += 1
-        #            rec = 1
-        #            #break
-        #        else:
-        #            next = predecessor[cur][0]
-        #        if cur[1] > 0:
-        #            print(cur,next,first_choice)
-        #            if cur[1] != next[1]:
-        #                indexes.append(mapper[cur[0]])
-        #                add_to_solution(cur)
-        #            cur = next
-        #        else:
-        #            if self.multiple_solutions == 0:
-        #                solutions_list.append(indexes)
-        #            return(indexes)
-
-        #ipdb.set_trace()
         self.selected_solution = 0        
         solutions_list = []
         self.solution_cardinality = 0
@@ -448,7 +438,7 @@ class BPV:
             index_series = np.zeros(self.tot_patterns)
             for j in idx:
                 index_series[j] = 1
-            self.data.df['decgraph'] = pd.Series(index_series)
+            self.data.df['decgraph'] = pd.Series(index_series,dtype='bool')
         else:
             i = 0
             self.solution = []
@@ -457,42 +447,8 @@ class BPV:
                 index_series = np.zeros(self.tot_patterns)
                 for j in sol:
                     index_series[j] = 1
-                self.data.df['decgraph' + str(i)] = pd.Series(index_series)
+                self.data.df['decgraph' + str(i)] = pd.Series(index_series,dtype='bool')
                 i += 1
-
-        #self.solution = self.data.df.ix[indexes]
-        #index_series = np.zeros(self.tot_patterns)
-        #for i in indexes:
-        #    index_series[i] = 1
-        #self.data.df['decgraph'] = pd.Series(index_series)
-
-        #print_taken_patterns=0
-        #cur = self.decgraph_best_value_node
-        #indexes = []
-        #self.solution_cardinality = 0
-        #self.solution_rate = 0
-        #self.solution_entropy = 0
-        #
-        #
-        #while 1:
-        #    try:
-        #        next = predecessor[cur]
-        #    except KeyError:
-        #        break
-        #    if cur[1] != next[1]:
-        #        k = cur[0]
-        #        indexes.append(mapper[k])
-        #        self.solution_cardinality += 1
-        #        self.solution_rate += p[k]
-        #        self.solution_entropy += plog1onp[k]
-        #        if print_taken_patterns:
-        #            print("taken pattern ", k, ", p[k] = ", p[k], "plog1onp[k] = ", plog1onp[k])
-        #    if next == root:
-        #        break
-        #    else:
-        #        cur = next
-        #
-        
 
         #self.decisiongraph_plot = 0
         #if self.decisiongraph_plot == 1:

@@ -116,7 +116,7 @@ class BPV:
     def __init__(self,solver_name,data,max_cardinality,max_rate,epsilon=0.05,time_solver=False,):
         self.solved = False
         self.__all_solvers__ = {"pulp": self.pulp_solver, "euristic": self.euristic_solver,\
-                                 "decgraph": self.decgraph_solver,\
+                                 "decgraphV": self.decgraphV_solver,"decgraphW": self.decgraphW_solver,\
                                 "decgraph_epsilon": self.decgraph_solver_epsilon}
         self.multiple_solutions = None
         self.selected_solution = None
@@ -271,8 +271,8 @@ class BPV:
         self.data.df['euristic'] = pd.Series(index_series,dtype='bool')
         self.selected_solution = 0        
                  
-    def decgraph_solver(self):
-        """Calculates solution using decision graph"""
+    def decgraphV_solver(self):
+        """Calculates solution using decision graph for V_{k,\mu,\nu} subproblems"""
 
         df = self.data.df[['p','plog1onp']].copy()
         df.sort_index(by="p",ascending=True,inplace=True)
@@ -438,7 +438,7 @@ class BPV:
             index_series = np.zeros(self.tot_patterns)
             for j in idx:
                 index_series[j] = 1
-            self.data.df['decgraph'] = pd.Series(index_series,dtype='bool')
+            self.data.df['decgraphV'] = pd.Series(index_series,dtype='bool')
         else:
             i = 0
             self.solution = []
@@ -447,7 +447,7 @@ class BPV:
                 index_series = np.zeros(self.tot_patterns)
                 for j in sol:
                     index_series[j] = 1
-                self.data.df['decgraph' + str(i)] = pd.Series(index_series,dtype='bool')
+                self.data.df['decgraphV' + str(i)] = pd.Series(index_series,dtype='bool')
                 i += 1
 
         #self.decisiongraph_plot = 0
@@ -492,6 +492,165 @@ class BPV:
         #    ax.set_ylabel('Scaled Entropy')
         #    ax.set_zlabel('Cardinality')
         #    plt.show()
+
+    def decgraphW_solver(self):
+        """Calculates solution using decision graph for W_{k,v,\nu} subproblems"""
+
+        df = self.data.df[['p','plog1onp']].copy()
+        df.sort_index(by="p",ascending=True,inplace=True)
+        idx = pd.Index([j for j in range(len(df))])
+        mapper = pd.Series(df.index)
+        df.set_index(idx,inplace=True)
+        
+        #p = df["p"]
+        #plog1onp = df["plog1onp"]
+        #indexing is much faster on a numpy array than on a pandas dataframe:
+        p = np.array(df["p"])
+        plog1onp = np.array(df["plog1onp"])
+
+        self.alpha = {}
+        self.predecessor = {}
+        self.decgraph_best_value = -1
+        self.decgraph_best_value_node = None
+        root = (-1,0,0)
+        self.alpha[root] = 0
+        visitlist = deque()
+        visitlist.appendleft(root)
+        next_visitlist = deque()
+        #graph_dimensions = (self.tot_patterns, self.max_rate, self.max_cardinality)
+        #leafs = []
+        self.decgraph_len_visitlist = [1]
+        
+        reverse_cumulative_plog1onp = np.zeros(self.tot_patterns)
+        reverse_cumulative_plog1onp[self.tot_patterns - 1] = plog1onp[self.tot_patterns - 1]
+        for i in np.arange(self.tot_patterns - 2, -1, -1):
+            reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + plog1onp[i]
+
+        def add_child(parent, arc_type):
+            "Looks at child and if feasible adds it to next_visitlist"
+            
+            k,v,nu = parent
+            if arc_type == 1:
+                child = (k+1,v,nu)
+                candidate_new_rate = self.alpha[cur]
+            else:
+                child = (k+1, v+plog1onp[k+1], nu+1)
+                candidate_new_rate = self.alpha[cur] + p[k+1]
+            add_child = True
+            add_to_next_visitlist = False
+            equivalent_paths = False
+            if child in self.alpha.keys():
+                if candidate_new_rate > self.alpha[child]:
+                    add_child = False
+                elif candidate_new_rate == self.alpha[child]:
+                    equivalent_paths = True
+            else:
+                add_to_next_visitlist = True
+            if add_child == 1:
+                if equivalent_paths == True:
+                    if arc_type == 1:
+                        self.predecessor[child] = [parent] + self.predecessor[child]
+                    elif arc_type == 2:
+                        self.predecessor[child] = self.predecessor[child] + [parent]
+                else:
+                    self.predecessor[child] = [parent]
+                    self.alpha[child] = candidate_new_rate
+                if add_to_next_visitlist == True:
+                    next_visitlist.append(child)
+                if child[1] > self.decgraph_best_value:
+                    self.decgraph_best_value = child[1]
+                    self.decgraph_best_value_node = child
+            
+        def fchild1():
+            pass
+        
+        def fchild2():
+            pass
+        
+        #main loop
+        while visitlist:
+            cur = visitlist.popleft()
+            k,v,nu = cur
+            if k+1 < self.tot_patterns and\
+               v + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
+               self.alpha[cur] + p[k+1] <= self.max_rate:
+                add_child(cur, 1)
+                #fchild1()
+                if nu + 1 <= self.max_cardinality:
+                    add_child(cur, 2)
+                    #fchild2()
+            if not visitlist:
+                self.decgraph_len_visitlist.append(len(next_visitlist))
+                visitlist = next_visitlist
+                next_visitlist = deque()
+
+        #for child,parlist in self.predecessor.items():
+        #    k = child[0]
+        #    for par in parlist:
+        #        if par[0] > k:
+        #            print(child,parlist)
+                    
+        def solutions(node,first_choice=None):
+            """Returns list of paths that end in node"""
+        
+            indexes = []
+            cur = node
+            while 1:
+                if len(self.predecessor[cur]) > 1:
+                    if first_choice == 0:
+                        next = self.predecessor[cur][0]
+                    elif first_choice == 1:
+                        next = self.predecessor[cur][1]
+                    else:
+                        if self.multiple_solutions == None:
+                            self.multiple_solutions = 2
+                        else:
+                            self.multiple_solutions += 1
+                        s0 = solutions(cur,0)
+                        solutions_list.append(indexes+s0)
+                        s1 = solutions(cur,1)
+                        solutions_list.append(indexes+s1)
+                        break
+                else:
+                    next = self.predecessor[cur][0]
+                if cur[1] > 0:
+                    if cur[1] != next[1]:
+                        indexes.append(mapper[cur[0]])
+                        if first_choice in (None,0):
+                            self.solution_cardinality += 1
+                            self.solution_rate += p[cur[0]]
+                            self.solution_entropy += plog1onp[cur[0]]
+                    first_choice = None
+                    cur = next
+                else:
+                    if self.multiple_solutions == None:
+                        solutions_list.append(indexes)
+                    return(indexes)
+
+        self.selected_solution = 0        
+        solutions_list = []
+        self.solution_cardinality = 0
+        self.solution_rate = 0
+        self.solution_entropy = 0
+        solutions(self.decgraph_best_value_node)
+        
+        if self.multiple_solutions == None:
+            idx = solutions_list[0]
+            self.solution = self.data.df.ix[idx]
+            index_series = np.zeros(self.tot_patterns)
+            for j in idx:
+                index_series[j] = 1
+            self.data.df['decgraphW'] = pd.Series(index_series,dtype='bool')
+        else:
+            i = 0
+            self.solution = []
+            for sol in solutions_list:
+                self.solution.append(self.data.df.ix[sol])
+                index_series = np.zeros(self.tot_patterns)
+                for j in sol:
+                    index_series[j] = 1
+                self.data.df['decgraphW' + str(i)] = pd.Series(index_series,dtype='bool')
+                i += 1
 
     def decgraph_solver_epsilon(self,epsilon):
         """Calculates an epsilon-solution using Dynamic Programming"""

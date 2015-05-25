@@ -24,7 +24,7 @@ df.df['plog1onp'] = df.df['p']*np.log(1/df.df['p'])
 df.df.sort_index(by='p',inplace=True,ascending=False)
 df.df.set_index(pd.Index([j for j in range(len(df.df))]), inplace=True)
 
-prbl = BPV.BPV("decgraph",df,N,W,time_solver=False)
+prbl = BPV.BPV("decgraphV",df,N,W,time_solver=False)
 prbl.solve()
 #cProfile.run('prbl.solve()',sort=1)
 prbl.pprint_solution()

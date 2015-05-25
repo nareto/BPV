@@ -16,7 +16,7 @@ data_head = data.data_head(20)
 N=5
 W=0.025  #rate
 
-prbl = BPV.BPV("decgraph",data_head,N,W,time_solver=False)
+prbl = BPV.BPV("decgraphV",data_head,N,W,time_solver=False)
 prbl.solve()
 #cProfile.run('prbl.solve()',sort=1)
 prbl.pprint_solution()

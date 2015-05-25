@@ -96,7 +96,7 @@ class BPV:
         self.__all_solvers__ = {"pulp": self.pulp_solver, "euristic": self.euristic_solver,\
                                  "decgraph": self.decgraph_solver,\
                                 "decgraph_epsilon": self.decgraph_solver_epsilon}
-        self.multiple_solutions = 0
+        self.multiple_solutions = None
         self.selected_solution = None
         self.data = data
         self.tot_patterns = len(data.df)
@@ -130,7 +130,7 @@ class BPV:
                   "\nEntropy = ", self.solution_entropy, \
                   "\nCardinality = ", self.solution_cardinality,\
                   "\nRate = ", self.solution_rate)
-            if self.multiple_solutions != 0:
+            if self.multiple_solutions != None:
                 print("\n{0} equivalent solutions found".format(self.multiple_solutions))
                 i = 0
                 for sol in self.solution:
@@ -282,12 +282,16 @@ class BPV:
         for i in np.arange(self.tot_patterns - 2, -1, -1):
             reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + plog1onp[i]
 
-        def add_child(parent, arc_type, candidate_new_entropy):
+        def add_child(parent, arc_type):
             "Looks at child and if feasible adds it to next_visitlist"
+            
+            k,mu,nu = parent
             if arc_type == 1:
                 child = (k+1,mu,nu)
+                candidate_new_entropy = alpha[cur]
             else:
                 child = (k+1, mu+p[k+1], nu+1)
+                candidate_new_entropy = alpha[cur] + plog1onp[k+1]
             add_child = 1
             add_to_next_visitlist = 0
             equivalent_paths = 0
@@ -308,7 +312,10 @@ class BPV:
                 add_to_next_visitlist = 1
             if add_child == 1:
                 if equivalent_paths == 1:
-                    predecessor[child].append(parent)
+                    if arc_type == 1:
+                        predecessor[child] = [parent] + predecessor[child]
+                    elif arc_type == 2:
+                        predecessor[child] = predecessor[child] + [parent]
                 else:
                     predecessor[child] = [parent]
                     alpha[child] = candidate_new_entropy
@@ -343,10 +350,10 @@ class BPV:
             if k+1 < self.tot_patterns and\
                alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
                mu + p[k+1] <= self.max_rate:
-                add_child(cur, 1, alpha[cur])
+                add_child(cur, 1)
                 #fchild1()
                 if nu + 1 <= self.max_cardinality:
-                    add_child(cur, 2, alpha[cur] + plog1onp[k+1])
+                    add_child(cur, 2)
                     #fchild2()
             if not visitlist:
                 self.decgraph_len_visitlist.append(len(next_visitlist))
@@ -361,7 +368,7 @@ class BPV:
                     
         def solutions(node,first_choice=None):
             """Returns list of paths that end in node"""
-
+        
             indexes = []
             cur = node
             while 1:
@@ -371,7 +378,10 @@ class BPV:
                     elif first_choice == 1:
                         next = predecessor[cur][1]
                     else:
-                        self.multiple_solutions += 1
+                        if self.multiple_solutions == None:
+                            self.multiple_solutions = 2
+                        else:
+                            self.multiple_solutions += 1
                         s0 = solutions(cur,0)
                         solutions_list.append(indexes+s0)
                         s1 = solutions(cur,1)
@@ -390,12 +400,41 @@ class BPV:
                     first_choice = None
                     cur = next
                 else:
-                    if self.multiple_solutions == 0:
+                    if self.multiple_solutions == None:
                         solutions_list.append(indexes)
                     return(indexes)
+        
+
+        #def add_to_solution(node):
+        #    self.solution_cardinality += 1
+        #    self.solution_rate += p[cur[0]]
+        #    self.solution_entropy += plog1onp[cur[0]]
+        #        
+        #def solutions(node):
+        #    """Returns list of paths that end in node"""
+        #
+        #    indexes = []
+        #    cur = node
+        #    while 1:
+        #        rec = 0
+        #        if len(predecessor[cur]) > 1:
+        #            self.multiple_solutions += 1
+        #            rec = 1
+        #            #break
+        #        else:
+        #            next = predecessor[cur][0]
+        #        if cur[1] > 0:
+        #            print(cur,next,first_choice)
+        #            if cur[1] != next[1]:
+        #                indexes.append(mapper[cur[0]])
+        #                add_to_solution(cur)
+        #            cur = next
+        #        else:
+        #            if self.multiple_solutions == 0:
+        #                solutions_list.append(indexes)
+        #            return(indexes)
 
         #ipdb.set_trace()
-        self.multiple_solutions = 0
         self.selected_solution = 0        
         solutions_list = []
         self.solution_cardinality = 0
@@ -403,7 +442,7 @@ class BPV:
         self.solution_entropy = 0
         solutions(self.decgraph_best_value_node)
         
-        if self.multiple_solutions == 0:
+        if self.multiple_solutions == None:
             idx = solutions_list[0]
             self.solution = self.data.df.ix[idx]
             index_series = np.zeros(self.tot_patterns)

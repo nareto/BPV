@@ -18,6 +18,7 @@ def pad_zeros(bit_string, length):
     return(bit_string)
 
 def string2pattern(string,shape):
+    string = pad_zeros(string, shape[0]*shape[1])
     h,w = shape
     pattern = np.zeros((h,w),dtype='int')
     for row in range(h):

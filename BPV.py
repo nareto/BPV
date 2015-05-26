@@ -1,6 +1,7 @@
 #import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+import pattern_manipulation as pm
 import pandas as pd
 import numpy as np
 import random
@@ -25,10 +26,13 @@ class Data():
         return(Data(self.df.copy()))
     
     def read_csv(self,csvfile, binary=True):
-        self.df = pd.read_csv(csvfile,header=None,names=["pattern","p"])
+        self.df = pd.read_csv(csvfile,header=None,names=["pattern-string","p"])
         self.df["plog1onp"] = self.df["p"]*np.log(1/self.df["p"])
         if not binary:
-            self.df["pattern"] = self.df["pattern"].map(dec_to_bin)
+            self.df["pattern-string"] = self.df["pattern-string"].map(dec_to_bin)
+        s2p = lambda x: pm.string2pattern(x,(3,3))
+        self.df['pattern-matrix'] = self.df['pattern-string'].apply(s2p)
+        self.df = self.df.reindex_axis(['pattern-string','pattern-matrix','p','plog1onp'],axis=1)
         #return(self.df)
 
     def data_head(self,rows=10):

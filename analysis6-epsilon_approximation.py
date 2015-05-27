@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import ipdb
 
-n = 50
+n = 200
 N=20
 W=0.0025
 epsilon = 0.9
@@ -18,8 +18,7 @@ df = data.data_head(n)
 
 #p = np.zeros(2*n)
 #for i in range(2*n):
-#    p[i] = dftmp['p'][i%n]
-#
+#    p[i] = df.df['p'][i%n]
 #p /= p.sum()
 #df = BPV.Data(pd.DataFrame(p, columns=['p']))
 #df.df['plog1onp'] = df.df['p']*np.log(1/df.df['p'])
@@ -38,11 +37,11 @@ prbl_decW = BPV.BPV("decgraphW",df,N,W,time_solver=False,use_quantized_entropy=T
 prbl_decW.solve()
 #cProfile.run('prbl.solve()',sort=1)
 prbl_decW.pprint_solution()
+print("\n\n Relative Erorr = ",BPV.relative_error(prbl_decW,prbl_pulp))
 
-sol_view = df.solution_view(prbl_pulp, prbl_decW)
-print(sol_view)
+sol_view = BPV.solution_non_zero_view(prbl_pulp, prbl_decW)
+#print(sol_view)
 #print(df.df)
-#print("\n\n Relative Erorr = ",BPV.relative_error(prbl_decW,prbl_pulp))
 #pulp_indexes = df.df[df.df['pulp'] == True].index
 #decgraphW_indexes = df.df[df.df['decgraphW'] == True].index
 #symdiffidx = pulp_indexes.sym_diff(decgraphW_indexes)

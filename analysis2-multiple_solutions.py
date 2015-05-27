@@ -34,16 +34,3 @@ prbl.solve()
 prbl.pprint_solution()
 
 print(df.df)
-#print(df.df)
-#
-#prbl = BPV.BPV("euristic",df,N,W,time_solver=False)
-#prbl.solve()
-#prbl.pprint_solution()
-#
-#plt.figure()
-#lvisitlist = prbl.decgraph_len_visitlist
-#t = np.arange(0,len(lvisitlist),1)
-##plt.plot(t,lvisitlist,'b',t,2**t,'r')
-#plt.plot(t,lvisitlist,'b')
-#plt.ylim(0,max(lvisitlist))
-#plt.show()

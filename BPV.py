@@ -11,6 +11,16 @@ import pdb
 import timeit
 from collections import deque
 
+def solution_strings(*BPV_instances):
+    strings = []
+    for instance in BPV_instances:
+        if instance.multiple_solutions != None:
+            for i in range(instance.multiple_solutions):
+                strings.append(instance.solver_name + str(i))
+        else:
+            strings.append(instance.solver_name)
+    return(strings)
+                
 def dec_to_bin(number):
     return(bin(int(number))[2:])
 
@@ -38,12 +48,16 @@ class Data():
     def data_head(self,rows=10):
         """Returns a DataFrame copy of the first rows rows of self.df, renormalizing vector p"""
 
-        data_head = Data(pd.DataFrame(self.df[["pattern","p"]][:rows].copy()))
+        data_head = Data(pd.DataFrame(self.df[["pattern-string","p"]][:rows].copy()))
         sum  = data_head.df["p"].sum()
         data_head.df["p"] /= sum
         data_head.df["plog1onp"] = data_head.df["p"]*np.log(1/data_head.df["p"])
         return(data_head)
 
+    def solution_view(self, *BPV_instances):
+        col_names = solution_strings(*BPV_instances)
+        return(self.df[col_names])
+        
 def distance_solutions(sol1, sol2):
     sup = 0
     argsup = -1
@@ -67,8 +81,8 @@ def distance_solutions(sol1, sol2):
     
     
 def relative_error(approximated_instance, exact_instance):
-    if approximated_instance.solved() and exact_instance.solved():
-        return abs((exact_instance.solution_entropy() - approximated_instance.solution_entropy())/exact_instance.solution_entropy())
+    if approximated_instance.solved and exact_instance.solved:
+        return abs((exact_instance.solution_entropy - approximated_instance.solution_entropy)/exact_instance.solution_entropy)
 
 def check_compatible_instances(*BPV_instances):
     """Returns True if all the BPV instances share the same (==) inputs, False otherwise"""
@@ -100,7 +114,7 @@ def print_comparison_table(*BPV_instances):
             columns.append("Relative Error")
         rows = []
         for instance in BPV_instances:
-            if instance.solved():
+            if instance.solved:
                 row = [instance.solver(), instance.solution_cardinality(), instance.solution_rate(), instance.solution_entropy()]
                 if exact_instance != None:
                     row.append(relative_error(instance, exact_instance))
@@ -117,11 +131,10 @@ def print_comparison_table(*BPV_instances):
             print(row_format.format(*r))
 
 class BPV:
-    def __init__(self,solver_name,data,max_cardinality,max_rate,epsilon=0.05,time_solver=False,):
+    def __init__(self,solver_name,data,max_cardinality,max_rate,epsilon=0.05,time_solver=False,use_quantized_entropy=False):
         self.solved = False
         self.__all_solvers__ = {"pulp": self.pulp_solver, "euristic": self.euristic_solver,\
-                                 "decgraphV": self.decgraphV_solver,"decgraphW": self.decgraphW_solver,\
-                                "decgraph_epsilon": self.decgraph_solver_epsilon}
+                                 "decgraphV": self.decgraphV_solver,"decgraphW": self.decgraphW_solver}
         self.multiple_solutions = None
         self.selected_solution = None
         self.data = data
@@ -133,7 +146,7 @@ class BPV:
         self.solver_name = solver_name
         self.set_solver()
         self.time_solver = time_solver
-
+        self.use_quantized_entropy = use_quantized_entropy
 
     def set_solver(self):
         if self.solver_name not in self.__all_solvers__.keys():
@@ -299,7 +312,6 @@ class BPV:
         visitlist = deque()
         visitlist.appendleft(root)
         next_visitlist = deque()
-        #graph_dimensions = (self.tot_patterns, self.max_rate, self.max_cardinality)
         #leafs = []
         self.decgraph_len_visitlist = [1]
         
@@ -321,14 +333,6 @@ class BPV:
             add_child = True
             add_to_next_visitlist = False
             equivalent_paths = False
-            #try:
-            #    if candidate_new_entropy > self.alpha[child]: #Bellman condition
-            #        add_child = 1
-            #except KeyError:
-            #    add_child = 1
-            #    add_to_next_visitlist = 1
-            #    if candidate_new_entropy == self.alpha[child]:
-            #        equivalent_paths = 1
             if child in self.alpha.keys():
                 if candidate_new_entropy < self.alpha[child]:
                     add_child = False
@@ -366,11 +370,6 @@ class BPV:
         
         #main loop
         while visitlist:
-            #ran = random.random()
-            #if ran <= 0.45:
-            #    cur = visitlist.pop()
-            #else:
-            #    cur = visitlist.popleft()
             cur = visitlist.popleft()
             k,mu,nu = cur
             if k+1 < self.tot_patterns and\
@@ -398,7 +397,7 @@ class BPV:
             indexes = []
             cur = node
             while 1:
-                if len(self.predecessor[cur]) > 1:
+                if cur != root and len(self.predecessor[cur]) > 1:
                     if first_choice == 0:
                         next = self.predecessor[cur][0]
                     elif first_choice == 1:
@@ -413,7 +412,7 @@ class BPV:
                         s1 = solutions(cur,1)
                         solutions_list.append(indexes+s1)
                         break
-                else:
+                elif cur != root:
                     next = self.predecessor[cur][0]
                 if cur[1] > 0:
                     if cur[1] != next[1]:
@@ -493,25 +492,27 @@ class BPV:
         #    print(indexes)
         #    ax.set_xlim(0,self.tot_patterns)
         #    ax.set_xlabel('Indexes')
-        #    ax.set_ylabel('Scaled Entropy')
+        #    ax.set_ylabel('Quantized Entropy')
         #    ax.set_zlabel('Cardinality')
         #    plt.show()
 
     def decgraphW_solver(self):
         """Calculates solution using decision graph for W_{k,v,\nu} subproblems"""
 
-        df = self.data.df[['p','plog1onp']].copy()
+        if self.use_quantized_entropy:
+            df = self.data.df[['p','quantized_plog1onp']].copy()
+        else:
+            df = self.data.df[['p','plog1onp']].copy()
         df.sort_index(by="p",ascending=True,inplace=True)
         idx = pd.Index([j for j in range(len(df))])
         mapper = pd.Series(df.index)
         df.set_index(idx,inplace=True)
-        
-        #p = df["p"]
-        #plog1onp = df["plog1onp"]
         #indexing is much faster on a numpy array than on a pandas dataframe:
         p = np.array(df["p"])
-        plog1onp = np.array(df["plog1onp"])
-
+        if self.use_quantized_entropy:
+            plog1onp = np.array(df["quantized_plog1onp"])
+        else:
+            plog1onp = np.array(df["plog1onp"])
         self.alpha = {}
         self.predecessor = {}
         self.decgraph_best_value = -1
@@ -521,7 +522,6 @@ class BPV:
         visitlist = deque()
         visitlist.appendleft(root)
         next_visitlist = deque()
-        #graph_dimensions = (self.tot_patterns, self.max_rate, self.max_cardinality)
         #leafs = []
         self.decgraph_len_visitlist = [1]
         
@@ -588,11 +588,6 @@ class BPV:
                 visitlist = next_visitlist
                 next_visitlist = deque()
 
-        #for child,parlist in self.predecessor.items():
-        #    k = child[0]
-        #    for par in parlist:
-        #        if par[0] > k:
-        #            print(child,parlist)
                     
         def solutions(node,first_choice=None):
             """Returns list of paths that end in node"""
@@ -600,7 +595,7 @@ class BPV:
             indexes = []
             cur = node
             while 1:
-                if len(self.predecessor[cur]) > 1:
+                if cur != root and len(self.predecessor[cur]) > 1:
                     if first_choice == 0:
                         next = self.predecessor[cur][0]
                     elif first_choice == 1:
@@ -615,7 +610,7 @@ class BPV:
                         s1 = solutions(cur,1)
                         solutions_list.append(indexes+s1)
                         break
-                else:
+                elif cur != root:
                     next = self.predecessor[cur][0]
                 if cur[1] > 0:
                     if cur[1] != next[1]:
@@ -623,7 +618,7 @@ class BPV:
                         if first_choice in (None,0):
                             self.solution_cardinality += 1
                             self.solution_rate += p[cur[0]]
-                            self.solution_entropy += plog1onp[cur[0]]
+                            self.solution_entropy += self.data.df['plog1onp'][mapper[cur[0]]]
                     first_choice = None
                     cur = next
                 else:
@@ -655,167 +650,6 @@ class BPV:
                     index_series[j] = 1
                 self.data.df['decgraphW' + str(i)] = pd.Series(index_series,dtype='bool')
                 i += 1
-
-    def decgraph_solver_epsilon(self,epsilon):
-        """Calculates an epsilon-solution using Dynamic Programming"""
-
-        scaling_factor = 1#epsilon*self.plog1onp[-1]/self.tot_patterns
-        scaled_plog1onp = self.plog1onp
-        #scaled_plog1onp = np.zeros(self.tot_patterns)
-        #for i in range(self.tot_patterns):
-        #    scaled_plog1onp[i] = 1 + int(self.plog1onp[i]/scaling_factor)
-        scaled_tot_entropy = scaled_plog1onp.sum()
-
-        table = {}
-        table_shape = (self.tot_patterns, scaled_tot_entropy, self.max_cardinality)
-        heap = []
-        heapq.heapify(heap)
-        root = (-1,0,0)
-        heapq.heappush(heap, root)
-        table[root] = 0
-        self.decgraph_best_value = 0
-        self.decgraph_best_value_node = (-1,-1,-1)
-        predecessor = {}
-        leafs = []
-
-        reverse_cumulative_plog1onp = np.zeros(self.tot_patterns)
-        reverse_cumulative_plog1onp[self.tot_patterns - 1] = scaled_plog1onp[self.tot_patterns - 1]
-        for i in np.arange(self.tot_patterns - 2, -1, -1):
-            reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + scaled_plog1onp[i]
-
-
-        #table_shape = (self.tot_patterns, scaled_tot_entropy, self.max_cardinality)
-        def is_valid_cell(cell):
-            i,j,k = cell
-            if i >= table_shape[0] or k > table_shape[2]:
-                return(0)
-            else:
-                return(1)    
-
-        def is_boundary_cell(cell):
-            if is_valid_cell(cell) and any(cell[i] == table_shape[i] - 1 for i in [0,1,2]):
-                return(1)
-            else:
-                return(0)
-            
-        def add_child(parent, child, arc_type):
-            "Looks at child and if feasible adds it to queue"
-            if arc_type not in [1,2]:
-                raise RuntimeError("arc_type must be either 1 or 2")
-            if arc_type == 1:
-                candidate_new_rate = table[parent]
-            else:
-                candidate_new_rate = table[parent] + self.p[child[0]]
-            add_child = 0
-            add_to_heap = 0
-            try:
-                if candidate_new_rate < table[child]:
-                    add_child = 1
-            except KeyError:
-                add_child = 1
-                add_to_heap = 1
-            if add_child == 1:
-                predecessor[child] = parent
-                table[child] = candidate_new_rate
-                if add_to_heap == 1:
-                    heapq.heappush(heap, child)
-                if child[1] > self.decgraph_best_value:
-                    self.decgraph_best_value = child[1]
-                    self.decgraph_best_value_node = child
-                if is_boundary_cell(child):
-                    leafs.append(child)
-            
-        def check_path(coords, print_taken_patterns=0):
-            cur = coords
-            indexes = []
-            cardinality = 0
-            rate = 0
-            entropy = 0
-            while 1:
-                try:
-                    next = predecessor[cur]
-                except KeyError:
-                    break
-                if cur[1] != next[1]:
-                    i = cur[0]
-                    indexes.append(i)
-                    cardinality += 1
-                    rate += self.p[i]
-                    entropy += self.plog1onp[i]
-                    if print_taken_patterns:
-                        print("taken pattern ", i, ", p[i] = ", self.p[i], "scaled plog1onp[i] = ", scaled_plog1onp[i])
-                if next == root:
-                    break
-                else:
-                    cur = next
-            return(indexes,entropy,rate,cardinality)
-
-        counter = 0
-        extracted_nodes = {}
-        while heapq.nlargest(1,heap) != []: #main loop
-            cur = heapq.heappop(heap)
-            if cur in extracted_nodes:
-                raise RuntimeError("node has been inserted more than one time in heap")
-            counter += 1
-            i,j,k = cur
-            extracted_nodes[cur] = (counter, table[cur])
-            #intable_rate = table[cur]
-            if i + 1 < self.tot_patterns and j + reverse_cumulative_plog1onp[i] >= self.decgraph_best_value:
-                child1 = (i+1,j,k)
-                child2 = (i+1, j+scaled_plog1onp[i+1], k+1)
-                if is_valid_cell(child1):
-                    add_child(cur, (child1), 1)
-                if is_valid_cell(child2) and table[cur] + self.p[i+1] <= self.max_rate:
-                    add_child(cur, (child2),2)
-
-        self.solution_indexes , self.solution_entropy,\
-            self.solution_rate, self.solution_cardinality = check_path(self.decgraph_best_value_node,1)
-        self.solution_indexes.sort()
-        self.selected_solution = 0        
-        print("\nin table: ", self.decgraph_best_value , "  calculated (scaled): ", 1 + int(self.solution_entropy/scaling_factor),\
-              " calculated: ", self.solution_entropy)
-
-        if self.decisiongraph_plot == 1:
-            fig = plt.figure()
-            ax = fig.gca(projection='3d')
-            for coords,n in extraction_order_of_nodes.items():
-                x,y,z = coords
-                ax.scatter(x,y,z,'r')
-                ax.text(x,y,z, str(n), fontsize=9)
-            
-            leafs.remove(self.decgraph_best_value_node)
-            for l in [self.decgraph_best_value_node] + leafs:
-                cur = l
-                if cur == self.decgraph_best_value_node:
-                    linestyle='-ob'
-                else:
-                    linestyle='-r'
-                while 1:
-                    try:
-                        next = predecessor.pop(cur)
-                    except KeyError:
-                        break
-                    x = (cur[0], next[0])
-                    y = (cur[1], next[1])
-                    z = (cur[2], next[2])
-                    if cur[1] != next[1]:
-                        ax.plot(x,y,z,linestyle)
-                    else:
-                        ax.plot(x,y,z,'--g')
-                    if next == root:
-                        break
-                    else:
-                        cur = next
-            #x =[2,5,4,7]
-            #y=[1,6,6,7]
-            #z=[7,2,45,6]
-            #ax.plot(x,y,z, '--r')
-            print(self.solution_indexes)
-            ax.set_xlim(0,self.tot_patterns)
-            ax.set_xlabel('Indexes')
-            ax.set_ylabel('Scaled Entropy')
-            ax.set_zlabel('Cardinality')
-            plt.show()
             
         
 

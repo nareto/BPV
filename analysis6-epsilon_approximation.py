@@ -5,16 +5,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import ipdb
 
-n = 200
-N=20
+#n = 200
+N=50
 W=0.0025
 epsilon = 0.9
 
-data = BPV.Data()
-data.read_csv("p.delviva.csv",False)
-data.df.sort_index(by="p",inplace=True,ascending=False)
-data.df.set_index(pd.Index([j for j in range(len(data.df))]), inplace=True)
-df = data.data_head(n)
+df = BPV.Data()
+df.read_csv("p.delviva.csv",False)
+df.df.sort_index(by="p",inplace=True,ascending=False)
+df.df.set_index(pd.Index([j for j in range(len(df.df))]), inplace=True)
+#df = df.data_head(n)
 
 #p = np.zeros(2*n)
 #for i in range(2*n):
@@ -40,7 +40,7 @@ prbl_decW.pprint_solution()
 print("\n\n Relative Erorr = ",BPV.relative_error(prbl_decW,prbl_pulp))
 
 sol_view = BPV.solution_non_zero_view(prbl_pulp, prbl_decW)
-#print(sol_view)
+print(sol_view)
 #print(df.df)
 #pulp_indexes = df.df[df.df['pulp'] == True].index
 #decgraphW_indexes = df.df[df.df['decgraphW'] == True].index

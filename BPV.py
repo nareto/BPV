@@ -457,11 +457,12 @@ class BPV:
             k,mu,nu = cur
             if k+1 < self.tot_patterns and\
                self.alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
-               mu + p[k+1] <= self.max_rate:
+               mu + p[k+1] <= self.max_rate and nu + 1 <= self.max_cardinality:
                 add_child(cur, 1)
+                add_child(cur, 2)
                 #fchild1()
-                if nu + 1 <= self.max_cardinality:
-                    add_child(cur, 2)
+                #if nu + 1 <= self.max_cardinality:
+                #    add_child(cur, 2)
                     #fchild2()
             if not visitlist:
                 self.decgraph_len_visitlist.append(len(next_visitlist))
@@ -621,11 +622,12 @@ class BPV:
             k,v,nu = cur
             if k+1 < self.tot_patterns and\
                v + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
-               self.alpha[cur] + p[k+1] <= self.max_rate:
+               self.alpha[cur] + p[k+1] <= self.max_rate and nu + 1 <= self.max_cardinality:
                 add_child(cur, 1)
+                add_child(cur, 2)
                 #fchild1()
-                if nu + 1 <= self.max_cardinality:
-                    add_child(cur, 2)
+                #if nu + 1 <= self.max_cardinality:
+                #    add_child(cur, 2)
                     #fchild2()
             if not visitlist:
                 self.decgraph_len_visitlist.append(len(next_visitlist))

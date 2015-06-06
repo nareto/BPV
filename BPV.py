@@ -57,6 +57,15 @@ def dec_to_bin(number):
     
     return(bin(int(number))[2:])
 
+def bin_to_dec(bin_string):
+    """Converts binary string to natural number"""
+
+    ret = 0
+    power = len(bin_string) - 1
+    for i in bin_string:
+        ret += 2**power * int(i)
+        power -= 1
+    return(ret)
 
 class Data():
     """Class representing the data needed by the BPV class"""

@@ -188,13 +188,13 @@ class BPV:
     """Class representing an instance of BPV. There are various solver methods:\
     
     pulp: uses Pulp (python universal linear programming) library to calculate an exact solution
-    euristic: uses the euristic approximation given by Bruni, Punzi and del Viva
+    heuristic: uses the heuristic approximation given by Bruni, Punzi and del Viva
     decgraphV: uses the decision graph algorithm with V_{k,\mu,\nu} subproblems
     decgraphW: uses the decision graph algorithm with W_{k,v,\nu} subproblems"""
     
     def __init__(self,solver_name,data,max_cardinality,max_rate,time_solver=False,use_quantized_entropy=False):
         self.solved = False
-        self.__all_solvers__ = {"pulp": self.pulp_solver, "euristic": self.euristic_solver,\
+        self.__all_solvers__ = {"pulp": self.pulp_solver, "heuristic": self.heuristic_solver,\
                                  "decgraphV": self.decgraphV_solver,"decgraphW": self.decgraphW_solver}
         self.multiple_solutions = None
         self.selected_solution = None
@@ -338,15 +338,15 @@ class BPV:
         self.data.df['pulp'] = pd.Series(index_series,dtype='bool')
         self.selected_solution = 0
         
-    def euristic_solver(self):
-        """The solution self.solution_indexes is defined as a level curve of sampled_euristic_cost, that is
-        self.solution_indexes = {x | sampled_euristic_cost(x) > c} for some c which is determined by the constraints.
+    def heuristic_solver(self):
+        """The solution self.solution_indexes is defined as a level curve of sampled_heuristic_cost, that is
+        self.solution_indexes = {x | sampled_heuristic_cost(x) > c} for some c which is determined by the constraints.
         We use the trivial method, which is O(self.max_cardinality*self.tot_patterns), to find the greatest values of f, checking
         on every iteration for the constraints to be respected. For the i-th greatest value of
-        sampled_euristic_cost we store it's index in self.solution_indexes[i], i.e. sampled_euristic_cost[self.solution_indexes[i]] is the
-        i-th greatest value of sampled_euristic_cost."""
+        sampled_heuristic_cost we store it's index in self.solution_indexes[i], i.e. sampled_heuristic_cost[self.solution_indexes[i]] is the
+        i-th greatest value of sampled_heuristic_cost."""
 
-        def euristic_unitary_cost(value):
+        def heuristic_unitary_cost(value):
             num = -value*np.log(value)
             den = max(1/self.max_cardinality, value/self.max_rate)
             return num/den
@@ -354,8 +354,8 @@ class BPV:
         df = self.data.df[['p','plog1onp']].copy()
         df['cost'] = np.NaN
         for i in df.index:
-            df['cost'][i] = euristic_unitary_cost(df['p'][i])
-
+            df['cost'][i] = heuristic_unitary_cost(df['p'][i])
+        self.data.df['heuristic_cost'] = df['cost'].copy()
         df.sort_index(by="cost",ascending=False,inplace=True)
 
         self.solution_cardinality = 0
@@ -377,7 +377,7 @@ class BPV:
         index_series = np.zeros(self.tot_patterns)
         for i in indexes:
             index_series[i] = True
-        self.data.df['euristic'] = pd.Series(index_series,dtype='bool')
+        self.data.df['heuristic'] = pd.Series(index_series,dtype='bool')
         self.selected_solution = 0        
                  
     def decgraphV_solver(self):

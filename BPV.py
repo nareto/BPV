@@ -6,8 +6,6 @@ import pandas as pd
 import numpy as np
 import random
 import pulp
-import ipdb
-import pdb
 import timeit
 from collections import deque
 
@@ -355,7 +353,7 @@ class BPV:
         df['cost'] = np.NaN
         for i in df.index:
             df['cost'][i] = heuristic_unitary_cost(df['p'][i])
-        self.data.df['heuristic_cost'] = df['cost'].copy()
+        self.heuristic_cost = df['cost'].copy()
         df.sort_index(by="cost",ascending=False,inplace=True)
 
         self.solution_cardinality = 0

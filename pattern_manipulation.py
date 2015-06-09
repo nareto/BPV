@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-
 from PIL import Image
 import numpy as np
 from pandas import Series
 import sys, os, shutil
-import ipdb
+
 
 def usage():
     print("USAGE: {0} command args\

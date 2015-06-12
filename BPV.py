@@ -9,6 +9,12 @@ import pulp
 import timeit
 from collections import deque
 
+def euclidean_distance(pdseries1,pdseries2):
+    dist = 0
+    for i in pdseries1.index:
+        dist += (pdseries1[i] - pdseries2[i])**2
+    return(np.sqrt(dist))
+
 def distance1(pdseries1,pdseries2):
     sup = 0
     for i in pdseries1.index:

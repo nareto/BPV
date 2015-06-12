@@ -9,6 +9,17 @@ import pulp
 import timeit
 from collections import deque
 
+def distance1(pdseries1,pdseries2):
+    sup = 0
+    for i in pdseries1.index:
+        den_sum = 1
+        for j in pdseries2.index:
+            den_sum += np.abs(pdseries1[i] - pdseries2[j])
+        candidate = np.abs(pdseries1[i] -pdseries2[i])/den_sum
+        if candidate > sup:
+            sup = candidate
+    return(sup)
+
 def solution_strings(*BPV_instances):
     """Returns list of the names of boolean solution columns"""
     
@@ -79,14 +90,63 @@ class Data():
         """Returns a new Data instance with a copy of the DataFrame"""
         
         return(Data(self.df.copy()))
-    
+
+    def artificial_noise1(self, variance, recalculate_entropy=True):
+        """Returns a new Data instance with a gaussian noise on the p column"""
+
+        cols = list(self.df.columns)
+        cols.remove('p')
+        p = self.df['p']
+        df_length = len(self.df)
+        p_err = np.zeros(df_length)
+        for i in range(df_length):
+            p_err[i] = np.abs(p[i] + np.random.normal(0,variance))
+        p_err = pd.Series(p_err)
+        #new_df = pd.DataFrame(index=self.index, columns=cols)
+        new_df = self.df[cols].copy()
+        new_df['p'] = p_err
+        new_df = Data(new_df)
+        if recalculate_entropy:
+            cols_minus_entropy = list(new_df.df.columns)
+            cols_minus_entropy.remove('plog1onp')
+            new_df.df = new_df.df[cols_minus_entropy].copy()
+            new_df.calculate_entropy()
+        return(new_df)
+
+    def artificial_noise2(self, variance_factor,recalculate_entropy=True):
+        """Returns a new Data instance with a gaussian noise on the p column.
+
+        Variance for each component p_i is variance_factor*p_i"""
+
+        cols = list(self.df.columns)
+        cols.remove('p')
+        p = self.df['p']
+        df_length = len(self.df)
+        p_err = np.zeros(df_length)
+        for i in range(df_length):
+            p_err[i] = np.abs(p[i] + np.random.normal(0,variance_factor*p[i]))
+        p_err = pd.Series(p_err)
+        #new_df = pd.DataFrame(index=self.index, columns=cols)
+        new_df = self.df[cols].copy()
+        new_df['p'] = p_err
+        new_df = Data(new_df)
+        if recalculate_entropy:
+            cols_minus_entropy = list(new_df.df.columns)
+            cols_minus_entropy.remove('plog1onp')
+            new_df.df = new_df.df[cols_minus_entropy].copy()
+            new_df.calculate_entropy()
+        return(new_df)
+
+    def calculate_entropy(self):
+        self.df["plog1onp"] = self.df["p"]*np.log(1/self.df["p"])
+        
     def read_csv(self,csvfile, binary=True):
         """Reads a CSV with columns: pattern-string,p\
 
         pattern-string can either be binary or decimal, in which case  'binary' must be set to False"""
         
         self.df = pd.read_csv(csvfile,header=None,names=["pattern-string","p"])
-        self.df["plog1onp"] = self.df["p"]*np.log(1/self.df["p"])
+        self.calculate_entropy()
         if not binary:
             self.df["pattern-string"] = self.df["pattern-string"].map(dec_to_bin)
         s2p = lambda x: pm.string2pattern(x,(3,3))

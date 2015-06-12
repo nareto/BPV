@@ -101,7 +101,7 @@ class Data():
         p_err = np.zeros(df_length)
         for i in range(df_length):
             p_err[i] = np.abs(p[i] + np.random.normal(0,variance))
-        p_err = pd.Series(p_err)
+        p_err = pd.Series(p_err/p_err.sum())
         #new_df = pd.DataFrame(index=self.index, columns=cols)
         new_df = self.df[cols].copy()
         new_df['p'] = p_err
@@ -125,7 +125,7 @@ class Data():
         p_err = np.zeros(df_length)
         for i in range(df_length):
             p_err[i] = np.abs(p[i] + np.random.normal(0,variance_factor*p[i]))
-        p_err = pd.Series(p_err)
+        p_err = pd.Series(p_err/p_err.sum())
         #new_df = pd.DataFrame(index=self.index, columns=cols)
         new_df = self.df[cols].copy()
         new_df['p'] = p_err

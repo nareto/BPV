@@ -347,6 +347,7 @@ class BPV:
                 s0 = self.paths_list(cur,0)
                 self.solutions_indexes_list.append(indexes+s0)
                 s1 = self.paths_list(cur,1)
+                print(indexes,'\n\n',s1)
                 self.solutions_indexes_list.append(indexes+s1)
                 break
             elif cur != self.decgraph_root:
@@ -447,6 +448,7 @@ class BPV:
     def decgraphV_solver(self):
         """Calculates solution using decision graph for V_{k,\mu,\nu} subproblems"""
 
+        self.nnodes = 1
         df = self.data.df[['p','plog1onp']].copy()
         df.sort_index(by="p",ascending=True,inplace=True)
         idx = pd.Index([j for j in range(len(df))])
@@ -539,6 +541,7 @@ class BPV:
                     #fchild2()
             if not visitlist:
                 self.decgraph_len_visitlist.append(len(next_visitlist))
+                self.nnodes += len(next_visitlist)
                 visitlist = next_visitlist
                 next_visitlist = deque()
 

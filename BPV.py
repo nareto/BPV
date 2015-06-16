@@ -8,6 +8,8 @@ import random
 import pulp
 import timeit
 from collections import deque
+import ipdb
+import pdb
 
 def euclidean_distance(pdseries1,pdseries2):
     dist = 0
@@ -329,39 +331,46 @@ class BPV:
         holes = self.data.df[self.data.df[name] == 0].ix[minidx:maxidx]
         return(0.5*len(holes)/(maxidx - minidx))
 
-    def paths_list(self,node,first_choice=None):
+    def paths_list(self,starting_node,rec_level=0,solutions_list=None,first_choice=None,multiple_solutions = None,sol_list_index=0):
         """Returns list of paths that end in node"""
 
-        indexes = []
-        cur = node
+        if rec_level == 0:
+            solutions_list = [[]]
+            indexes = solutions_list[0]
+        indexes = solutions_list[sol_list_index]
+        cur_node = starting_node
         while 1:
             if first_choice == 0:
-                next = self.predecessor[cur][0]
+                next_node = self.predecessor[cur_node][0]
             elif first_choice == 1:
-                next = self.predecessor[cur][1]
-            elif cur != self.decgraph_root and len(self.predecessor[cur]) > 1:
-                if self.multiple_solutions == None:
-                    self.multiple_solutions = 2
+                next_node = self.predecessor[cur_node][1]
+            elif cur_node != self.decgraph_root and len(self.predecessor[cur_node]) > 1:
+                if multiple_solutions == None:
+                    multiple_solutions = 2
                 else:
-                    self.multiple_solutions += 1
-                s0 = self.paths_list(cur,0)
-                self.solutions_indexes_list.append(indexes+s0)
-                s1 = self.paths_list(cur,1)
-                print(indexes,'\n\n',s1)
-                self.solutions_indexes_list.append(indexes+s1)
-                break
-            elif cur != self.decgraph_root:
-                next = self.predecessor[cur][0]
-            if cur[1] > 0:
-                if cur[1] != next[1]:
-                    indexes.append(self.decgraph_index_mapper[cur[0]])
+                    multiple_solutions += 1
+                indexes2 = indexes.copy()
+                solutions_list.append(indexes2)
+                indexes2_index = len(solutions_list) - 1 
+                self.paths_list(cur_node,rec_level+1,solutions_list,0,multiple_solutions,sol_list_index)
+                self.paths_list(cur_node,rec_level+1,solutions_list, 1,multiple_solutions,indexes2_index)
+                if rec_level > 0:
+                    break
+                else:
+                    return(solutions_list)
+            elif cur_node != self.decgraph_root:
+                next_node = self.predecessor[cur_node][0]
+            if cur_node[1] > 0:
+                if cur_node[1] != next_node[1]:
+                    indexes.append(self.decgraph_index_mapper[cur_node[0]])
                 first_choice = None
-                cur = next
-            else:
-                if self.multiple_solutions == None:
-                    self.solutions_indexes_list.append(indexes)
-                return(indexes)
-        
+                cur_node = next_node
+            else: #cur_node == self.decgraph_root or cur_node[1] == 0
+                if multiple_solutions == None:
+                    return(solutions_list)
+                else:
+                    break
+
     def pulp_solver(self):
         """Uses PuLP to calculate [one] pulp solution"""
 
@@ -546,8 +555,7 @@ class BPV:
                 next_visitlist = deque()
 
         self.selected_solution = 0        
-        self.solutions_indexes_list = []
-        self.paths_list(self.decgraph_best_value_node)
+        self.solutions_indexes_list = self.paths_list(self.decgraph_best_value_node)
         self.solution_cardinality = 0
         self.solution_rate = 0
         self.solution_entropy = 0
@@ -711,8 +719,7 @@ class BPV:
                 next_visitlist = deque()
 
         self.selected_solution = 0        
-        self.solutions_indexes_list = []
-        self.paths_list(self.decgraph_best_value_node)
+        self.solutions_indexes_list = self.paths_list(self.decgraph_best_value_node)
         self.solution_cardinality = 0
         self.solution_rate = 0
         self.solution_entropy = 0

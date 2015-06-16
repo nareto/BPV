@@ -10,6 +10,7 @@ import timeit
 from collections import deque
 import ipdb
 import pdb
+import gc
 
 def euclidean_distance(pdseries1,pdseries2):
     dist = 0
@@ -475,11 +476,9 @@ class BPV:
         self.decgraph_best_value = -1
         self.decgraph_best_value_node = None
         self.decgraph_root = (-1,0,0)
-        self.alpha[self.decgraph_root] = 0
-        visitlist = deque()
-        visitlist.appendleft(self.decgraph_root)
-        next_visitlist = deque()
-        #leafs = []
+        self.cur_nodes_dict = {}
+        self.next_nodes_dict = {}
+        self.cur_nodes_dict[self.decgraph_root] = 0
         self.decgraph_len_visitlist = [1]
         
         reverse_cumulative_plog1onp = np.zeros(self.tot_patterns)
@@ -487,26 +486,23 @@ class BPV:
         for i in np.arange(self.tot_patterns - 2, -1, -1):
             reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + plog1onp[i]
 
-        def add_child(parent, arc_type):
+        def add_child(parent, arc_type, alpha_cur):
             "Looks at child and if feasible adds it to next_visitlist"
             
             k,mu,nu = parent
             if arc_type == 1:
                 child = (k+1,mu,nu)
-                candidate_new_entropy = self.alpha[cur]
+                candidate_new_entropy = alpha_cur
             else:
                 child = (k+1, mu+p[k+1], nu+1)
-                candidate_new_entropy = self.alpha[cur] + plog1onp[k+1]
+                candidate_new_entropy = alpha_cur + plog1onp[k+1]
             add_child = True
-            add_to_next_visitlist = False
             equivalent_paths = False
-            if child in self.alpha.keys():
-                if candidate_new_entropy < self.alpha[child]:
+            if child in self.next_nodes_dict.keys():
+                if candidate_new_entropy < self.next_nodes_dict[child]:
                     add_child = False
-                elif candidate_new_entropy == self.alpha[child]:
+                elif candidate_new_entropy == self.next_nodes_dict[child]:
                     equivalent_paths = True
-            else:
-                add_to_next_visitlist = True
             if add_child == 1:
                 if equivalent_paths == True:
                     if arc_type == 1:
@@ -515,44 +511,27 @@ class BPV:
                         self.predecessor[child] = self.predecessor[child] + [parent]
                 else:
                     self.predecessor[child] = [parent]
-                    self.alpha[child] = candidate_new_entropy
-                if add_to_next_visitlist == True:
-                    #if arc_type == 1:
-                    #    next_visitlist.appendleft(child)
-                    #else:
-                    #    next_visitlist.append(child)
-                    #visitlist.append(child)
-                    next_visitlist.append(child)
-                if self.alpha[child] > self.decgraph_best_value:
-                    self.decgraph_best_value = self.alpha[child]
+                    self.next_nodes_dict[child] = candidate_new_entropy
+                if self.next_nodes_dict[child] > self.decgraph_best_value:
+                    self.decgraph_best_value = self.next_nodes_dict[child]
                     self.decgraph_best_value_node = child
-                #if is_boundary_cell(child):
-                #    leafs.append(child)
-            
-        def fchild1():
-            pass
-        
-        def fchild2():
-            pass
-        
+
         #main loop
-        while visitlist:
-            cur = visitlist.popleft()
+        while self.cur_nodes_dict.keys():
+            cur, alpha = self.cur_nodes_dict.popitem()
             k,mu,nu = cur
             if k+1 < self.tot_patterns and\
-               self.alpha[cur] + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
+               alpha + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
                mu + p[k+1] <= self.max_rate and nu + 1 <= self.max_cardinality:
-                add_child(cur, 1)
-                add_child(cur, 2)
-                #fchild1()
-                #if nu + 1 <= self.max_cardinality:
-                #    add_child(cur, 2)
-                    #fchild2()
-            if not visitlist:
-                self.decgraph_len_visitlist.append(len(next_visitlist))
-                self.nnodes += len(next_visitlist)
-                visitlist = next_visitlist
-                next_visitlist = deque()
+                add_child(cur, 1, alpha)
+                add_child(cur, 2, alpha)
+            if not self.cur_nodes_dict.keys():
+                l = len(self.next_nodes_dict.keys())
+                self.decgraph_len_visitlist.append(l)
+                self.nnodes += l
+                self.cur_nodes_dict = self.next_nodes_dict
+                self.next_nodes_dict = {}
+                gc.collect()
 
         self.selected_solution = 0        
         self.solutions_indexes_list = self.paths_list(self.decgraph_best_value_node)
@@ -582,49 +561,6 @@ class BPV:
                 self.data.df['decgraphH' + str(i)] = pd.Series(index_series,dtype='bool')
                 i += 1
 
-        #self.decisiongraph_plot = 0
-        #if self.decisiongraph_plot == 1:
-        #    fig = plt.figure()
-        #    ax = fig.gca(projection='3d')
-        #    for coords,n in extraction_order_of_nodes.items():
-        #        x,y,z = coords
-        #        ax.scatter(x,y,z,'r')
-        #        ax.text(x,y,z, str(n), fontsize=9)
-        #        
-        #    leafs.remove(self.decgraph_best_value_node)
-        #    for l in [self.decgraph_best_value_node] + leafs:
-        #        cur = l
-        #        if cur == self.decgraph_best_value_node:
-        #            linestyle='-ob'
-        #        else:
-        #            linestyle='-r'
-        #        while 1:
-        #            try:
-        #                next = predecessor.pop(cur)
-        #            except KeyError:
-        #                break
-        #            x = (cur[0], next[0])
-        #            y = (cur[1], next[1])
-        #            z = (cur[2], next[2])
-        #            if cur[1] != next[1]:
-        #                ax.plot(x,y,z,linestyle)
-        #            else:
-        #                ax.plot(x,y,z,'--g')
-        #            if next == self.decgraph_root:
-        #                break
-        #            else:
-        #                cur = next
-        #                #x =[2,5,4,7]
-        #                #y=[1,6,6,7]
-        #                #z=[7,2,45,6]
-        #                #ax.plot(x,y,z, '--r')
-        #    print(indexes)
-        #    ax.set_xlim(0,self.tot_patterns)
-        #    ax.set_xlabel('Indexes')
-        #    ax.set_ylabel('Quantized Entropy')
-        #    ax.set_zlabel('Cardinality')
-        #    plt.show()
-
     def decgraphW_solver(self):
         """Calculates solution using decision graph for W_{k,v,\nu} subproblems"""
 
@@ -648,11 +584,10 @@ class BPV:
         self.decgraph_best_value = -1
         self.decgraph_best_value_node = None
         self.decgraph_root = (-1,0,0)
-        self.alpha[self.decgraph_root] = 0
-        visitlist = deque()
-        visitlist.appendleft(self.decgraph_root)
-        next_visitlist = deque()
-        #leafs = []
+        self.cur_nodes_dict = {}
+        self.next_nodes_dict = {}
+        self.cur_nodes_dict[self.decgraph_root] = 0
+
         self.decgraph_len_visitlist = [1]
         
         reverse_cumulative_plog1onp = np.zeros(self.tot_patterns)
@@ -660,26 +595,23 @@ class BPV:
         for i in np.arange(self.tot_patterns - 2, -1, -1):
             reverse_cumulative_plog1onp[i] = reverse_cumulative_plog1onp[i+1] + plog1onp[i]
 
-        def add_child(parent, arc_type):
+        def add_child(parent, arc_type, alpha_cur):
             "Looks at child and if feasible adds it to next_visitlist"
             
             k,v,nu = parent
             if arc_type == 1:
                 child = (k+1,v,nu)
-                candidate_new_rate = self.alpha[cur]
+                candidate_new_rate = alpha_cur
             else:
                 child = (k+1, v+plog1onp[k+1], nu+1)
-                candidate_new_rate = self.alpha[cur] + p[k+1]
+                candidate_new_rate = alpha_cur + p[k+1]
             add_child = True
-            add_to_next_visitlist = False
             equivalent_paths = False
-            if child in self.alpha.keys():
-                if candidate_new_rate > self.alpha[child]:
+            if child in self.next_nodes_dict.keys():
+                if candidate_new_rate > self.next_nodes_dict[child]:
                     add_child = False
-                elif candidate_new_rate == self.alpha[child]:
+                elif candidate_new_rate == self.next_nodes_dict[child]:
                     equivalent_paths = True
-            else:
-                add_to_next_visitlist = True
             if add_child == 1:
                 if equivalent_paths == True:
                     if arc_type == 1:
@@ -688,37 +620,27 @@ class BPV:
                         self.predecessor[child] = self.predecessor[child] + [parent]
                 else:
                     self.predecessor[child] = [parent]
-                    self.alpha[child] = candidate_new_rate
-                if add_to_next_visitlist == True:
-                    next_visitlist.append(child)
+                    self.next_nodes_dict[child] = candidate_new_rate
                 if child[1] > self.decgraph_best_value:
                     self.decgraph_best_value = child[1]
                     self.decgraph_best_value_node = child
             
-        def fchild1():
-            pass
-        
-        def fchild2():
-            pass
-        
         #main loop
-        while visitlist:
-            cur = visitlist.popleft()
+        while self.cur_nodes_dict.keys():
+            cur,alpha = self.cur_nodes_dict.popitem()
             k,v,nu = cur
             if k+1 < self.tot_patterns and\
                v + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
-               self.alpha[cur] + p[k+1] <= self.max_rate and nu + 1 <= self.max_cardinality:
-                add_child(cur, 1)
-                add_child(cur, 2)
-                #fchild1()
-                #if nu + 1 <= self.max_cardinality:
-                #    add_child(cur, 2)
-                    #fchild2()
-            if not visitlist:
-                self.nnodes += len(next_visitlist)
-                self.decgraph_len_visitlist.append(len(next_visitlist))
-                visitlist = next_visitlist
-                next_visitlist = deque()
+               alpha + p[k+1] <= self.max_rate and nu + 1 <= self.max_cardinality:
+                add_child(cur, 1, alpha)
+                add_child(cur, 2, alpha)
+            if not self.cur_nodes_dict.keys():
+                l = len(self.next_nodes_dict.keys())
+                self.nnodes += l
+                self.decgraph_len_visitlist.append(l)
+                self.cur_nodes_dict = self.next_nodes_dict
+                self.next_nodes_dict = {}
+                gc.collect()
 
         self.selected_solution = 0        
         self.solutions_indexes_list = self.paths_list(self.decgraph_best_value_node)
@@ -748,6 +670,5 @@ class BPV:
                     index_series[j] = 1
                 self.data.df['decgraphW' + str(i)] = pd.Series(index_series,dtype='bool')
                 i += 1
-            
-        
 
+  

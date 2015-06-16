@@ -255,13 +255,13 @@ class BPV:
     
     pulp: uses Pulp (python universal linear programming) library to calculate an exact solution
     heuristic: uses the heuristic approximation given by Bruni, Punzi and del Viva
-    decgraphV: uses the decision graph algorithm with V_{k,\mu,\nu} subproblems
+    decgraphH: uses the decision graph algorithm with V_{k,\mu,\nu} subproblems
     decgraphW: uses the decision graph algorithm with W_{k,v,\nu} subproblems"""
     
     def __init__(self,solver_name,data,max_cardinality,max_rate,time_solver=False,use_quantized_entropy=False):
         self.solved = False
         self.__all_solvers__ = {"pulp": self.pulp_solver, "heuristic": self.heuristic_solver,\
-                                 "decgraphV": self.decgraphV_solver,"decgraphW": self.decgraphW_solver}
+                                 "decgraphH": self.decgraphH_solver,"decgraphW": self.decgraphW_solver}
         self.multiple_solutions = None
         self.selected_solution = None
         self.data = data
@@ -454,7 +454,7 @@ class BPV:
         self.data.df['heuristic'] = pd.Series(index_series,dtype='bool')
         self.selected_solution = 0        
                  
-    def decgraphV_solver(self):
+    def decgraphH_solver(self):
         """Calculates solution using decision graph for V_{k,\mu,\nu} subproblems"""
 
         self.nnodes = 1
@@ -570,7 +570,7 @@ class BPV:
             index_series = np.zeros(self.tot_patterns)
             for j in idx:
                 index_series[j] = 1
-            self.data.df['decgraphV'] = pd.Series(index_series,dtype='bool')
+            self.data.df['decgraphH'] = pd.Series(index_series,dtype='bool')
         else:
             i = 0
             self.solution = []
@@ -579,7 +579,7 @@ class BPV:
                 index_series = np.zeros(self.tot_patterns)
                 for j in sol:
                     index_series[j] = 1
-                self.data.df['decgraphV' + str(i)] = pd.Series(index_series,dtype='bool')
+                self.data.df['decgraphH' + str(i)] = pd.Series(index_series,dtype='bool')
                 i += 1
 
         #self.decisiongraph_plot = 0

@@ -628,6 +628,7 @@ class BPV:
     def decgraphW_solver(self):
         """Calculates solution using decision graph for W_{k,v,\nu} subproblems"""
 
+        self.nnodes = 1
         if self.use_quantized_entropy:
             df = self.data.df[['p','quantized_plog1onp']].copy()
         else:
@@ -714,6 +715,7 @@ class BPV:
                 #    add_child(cur, 2)
                     #fchild2()
             if not visitlist:
+                self.nnodes += len(next_visitlist)
                 self.decgraph_len_visitlist.append(len(next_visitlist))
                 visitlist = next_visitlist
                 next_visitlist = deque()

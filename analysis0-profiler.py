@@ -16,17 +16,17 @@ data.df.set_index(pd.Index([j for j in range(len(data.df))]), inplace=True)
 data_head = data.data_head(n)
 #data.df.sort_index(by="p")
 
-prbl_pulp = BPV.BPV("pulp",data_head,N,W,time_solver=False)
-prbl_pulp.solve()
-prbl_pulp.pprint_solution()
+#prbl_pulp = BPV.BPV("pulp",data_head,N,W,time_solver=False)
+#prbl_pulp.solve()
+#prbl_pulp.pprint_solution()
+#
 
-
-prbl_decH = BPV.BPV("decgraphH",data_head,N,W,time_solver=False)
+prbl_decH = BPV.BPV("decgraphH",data_head,N,W,time_solver=True)
 prbl_decH.solve()
 #cProfile.run('prbl_decH.solve()',sort=1)
 prbl_decH.pprint_solution()
 
-prbl_decW = BPV.BPV("decgraphW",data_head,N,W,time_solver=False)
-prbl_decW.solve()
-#cProfile.run('prbl_decW.solve()',sort=1)
-prbl_decW.pprint_solution()
+#prbl_decW = BPV.BPV("decgraphW",data_head,N,W,time_solver=False)
+#prbl_decW.solve()
+##cProfile.run('prbl_decW.solve()',sort=1)
+#prbl_decW.pprint_solution()

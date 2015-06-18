@@ -287,7 +287,7 @@ class BPV:
             self.solution_time = timeit.timeit(self.solver,number=1)
         else:
             self.solver()
-        self.solved = True
+
 
 
     def pprint_solution(self):
@@ -412,6 +412,7 @@ class BPV:
             index_series[i] = True
         self.data.df['pulp'] = pd.Series(index_series,dtype='bool')
         self.selected_solution = 0
+        self.solved = True
         
     def heuristic_solver(self):
         """The solution self.solution_indexes is defined as a level curve of sampled_heuristic_cost, that is
@@ -454,7 +455,8 @@ class BPV:
             index_series[i] = True
         self.data.df['heuristic'] = pd.Series(index_series,dtype='bool')
         self.selected_solution = 0        
-                 
+        self.solved = True
+        
     def decgraphH_solver(self):
         """Calculates solution using decision graph for V_{k,\mu,\nu} subproblems"""
 
@@ -534,32 +536,37 @@ class BPV:
                 gc.collect()
 
         self.selected_solution = 0        
-        self.solutions_indexes_list = self.paths_list(self.decgraph_best_value_node)
-        self.solution_cardinality = 0
-        self.solution_rate = 0
-        self.solution_entropy = 0
-        for idx in self.solutions_indexes_list[0]:
-            self.solution_cardinality += 1
-            self.solution_rate += self.data.df['p'][idx]
-            self.solution_entropy += self.data.df['plog1onp'][idx]
-        
-        if self.multiple_solutions == None:
-            idx = self.solutions_indexes_list[0]
-            self.solution = self.data.df.ix[idx]
-            index_series = np.zeros(self.tot_patterns)
-            for j in idx:
-                index_series[j] = 1
-            self.data.df['decgraphH'] = pd.Series(index_series,dtype='bool')
+        if self.decgraph_best_value_node == None:
+            self.solved = False
+            self.solution = [None]
         else:
-            i = 0
-            self.solution = []
-            for sol in self.solutions_indexes_list:
-                self.solution.append(self.data.df.ix[sol])
+            self.solved = True
+            self.solutions_indexes_list = self.paths_list(self.decgraph_best_value_node)
+            self.solution_cardinality = 0
+            self.solution_rate = 0
+            self.solution_entropy = 0
+            for idx in self.solutions_indexes_list[0]:
+                self.solution_cardinality += 1
+                self.solution_rate += self.data.df['p'][idx]
+                self.solution_entropy += self.data.df['plog1onp'][idx]
+
+            if self.multiple_solutions == None:
+                idx = self.solutions_indexes_list[0]
+                self.solution = self.data.df.ix[idx]
                 index_series = np.zeros(self.tot_patterns)
-                for j in sol:
+                for j in idx:
                     index_series[j] = 1
-                self.data.df['decgraphH' + str(i)] = pd.Series(index_series,dtype='bool')
-                i += 1
+                self.data.df['decgraphH'] = pd.Series(index_series,dtype='bool')
+            else:
+                i = 0
+                self.solution = []
+                for sol in self.solutions_indexes_list:
+                    self.solution.append(self.data.df.ix[sol])
+                    index_series = np.zeros(self.tot_patterns)
+                    for j in sol:
+                        index_series[j] = 1
+                    self.data.df['decgraphH' + str(i)] = pd.Series(index_series,dtype='bool')
+                    i += 1
 
     def decgraphW_solver(self):
         """Calculates solution using decision graph for W_{k,v,\nu} subproblems"""
@@ -643,32 +650,38 @@ class BPV:
                 gc.collect()
 
         self.selected_solution = 0        
-        self.solutions_indexes_list = self.paths_list(self.decgraph_best_value_node)
-        self.solution_cardinality = 0
-        self.solution_rate = 0
-        self.solution_entropy = 0
-        for idx in self.solutions_indexes_list[0]:
-            self.solution_cardinality += 1
-            self.solution_rate += self.data.df['p'][idx]
-            self.solution_entropy += self.data.df['plog1onp'][idx]
 
-        
-        if self.multiple_solutions == None:
-            idx = self.solutions_indexes_list[0]
-            self.solution = self.data.df.ix[idx]
-            index_series = np.zeros(self.tot_patterns)
-            for j in idx:
-                index_series[j] = 1
-            self.data.df['decgraphW'] = pd.Series(index_series,dtype='bool')
+        if self.decgraph_best_value_node == None:
+            self.solved = False
+            self.solution = [None]
         else:
-            i = 0
-            self.solution = []
-            for sol in self.solutions_indexes_list:
-                self.solution.append(self.data.df.ix[sol])
+            self.solved = True
+            self.solutions_indexes_list = self.paths_list(self.decgraph_best_value_node)
+            self.solution_cardinality = 0
+            self.solution_rate = 0
+            self.solution_entropy = 0
+            for idx in self.solutions_indexes_list[0]:
+                self.solution_cardinality += 1
+                self.solution_rate += self.data.df['p'][idx]
+                self.solution_entropy += self.data.df['plog1onp'][idx]
+
+
+            if self.multiple_solutions == None:
+                idx = self.solutions_indexes_list[0]
+                self.solution = self.data.df.ix[idx]
                 index_series = np.zeros(self.tot_patterns)
-                for j in sol:
+                for j in idx:
                     index_series[j] = 1
-                self.data.df['decgraphW' + str(i)] = pd.Series(index_series,dtype='bool')
-                i += 1
+                self.data.df['decgraphW'] = pd.Series(index_series,dtype='bool')
+            else:
+                i = 0
+                self.solution = []
+                for sol in self.solutions_indexes_list:
+                    self.solution.append(self.data.df.ix[sol])
+                    index_series = np.zeros(self.tot_patterns)
+                    for j in sol:
+                        index_series[j] = 1
+                    self.data.df['decgraphW' + str(i)] = pd.Series(index_series,dtype='bool')
+                    i += 1
 
   

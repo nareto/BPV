@@ -527,7 +527,7 @@ class BPV:
                mu + p[k+1] <= self.max_rate and nu + 1 <= self.max_cardinality:
                 add_child(cur, 1, alpha)
                 add_child(cur, 2, alpha)
-            if not self.cur_nodes_dict.keys():
+            if not self.cur_nodes_dict.keys() and k < self.tot_patterns -1:
                 l = len(self.next_nodes_dict.keys())
                 self.decgraph_len_visitlist.append(l)
                 self.nnodes += l
@@ -641,7 +641,7 @@ class BPV:
                alpha + p[k+1] <= self.max_rate and nu + 1 <= self.max_cardinality:
                 add_child(cur, 1, alpha)
                 add_child(cur, 2, alpha)
-            if not self.cur_nodes_dict.keys():
+            if not self.cur_nodes_dict.keys() and k < self.tot_patterns -1:
                 l = len(self.next_nodes_dict.keys())
                 self.nnodes += l
                 self.decgraph_len_visitlist.append(l)

@@ -372,6 +372,34 @@ class BPV:
                 else:
                     break
 
+    def write_cplex_lp(self,filepath):
+        """Uses PuLP .writeLP method to write the method to filepath in CPLEX LP format"""
+
+        pulp_instance = pulp.LpProblem(" (BPV) ",pulp.LpMaximize)
+        
+        self.__pulp_variables__ = []
+        for i in range(self.tot_patterns):
+            self.__pulp_variables__.append(pulp.LpVariable("x_%d" % i,0,1,pulp.LpInteger))
+        
+        cdotp = 0
+        for i in range(self.tot_patterns):
+            cdotp += self.data.df["plog1onp"][i]*self.__pulp_variables__[i] #linear combination to optimize
+            
+        pulp_instance += cdotp, "Entropy of the solution"
+        
+        constraint_cardinality = 0
+        constraint_rate = 0
+        for i in range(self.tot_patterns):
+            constraint_cardinality += self.__pulp_variables__[i]
+            constraint_rate += self.data.df["p"][i]*self.__pulp_variables__[i]
+        
+        pulp_instance += constraint_cardinality <= self.max_cardinality, "Cardinality constraint"
+        pulp_instance += constraint_rate <= self.max_rate, "Rate constraint"
+
+        pulp_instance.writeLP(filepath)
+
+
+        
     def pulp_solver(self):
         """Uses PuLP to calculate [one] pulp solution"""
 

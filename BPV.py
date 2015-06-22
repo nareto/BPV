@@ -1,16 +1,15 @@
 #import matplotlib as mpl
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
 import pattern_manipulation as pm
 import pandas as pd
 import numpy as np
 import random
 import pulp
 import timeit
-from collections import deque
 import ipdb
 import pdb
 import gc
+from tempfile import NamedTemporaryFile as named_tmp
+import os
 
 def euclidean_distance(pdseries1,pdseries2):
     dist = 0
@@ -255,14 +254,18 @@ class BPV:
     """Class representing an instance of BPV. There are various solver methods:\
     
     pulp: uses Pulp (python universal linear programming) library to calculate an exact solution
+    glpk: makes an external call to glpsol
     heuristic: uses the heuristic approximation given by Bruni, Punzi and del Viva
     decgraphH: uses the decision graph algorithm with V_{k,\mu,\nu} subproblems
     decgraphW: uses the decision graph algorithm with W_{k,v,\nu} subproblems"""
     
     def __init__(self,solver_name,data,max_cardinality,max_rate,time_solver=False,use_quantized_entropy=False):
         self.solved = False
-        self.__all_solvers__ = {"pulp": self.pulp_solver, "heuristic": self.heuristic_solver,\
-                                 "decgraphH": self.decgraphH_solver,"decgraphW": self.decgraphW_solver}
+        self.__all_solvers__ = {"pulp": self.pulp_solver,\
+                                "glpk": self.glpk_solver,\
+                                "heuristic": self.heuristic_solver,\
+                                "decgraphH": self.decgraphH_solver,\
+                                "decgraphW": self.decgraphW_solver}
         self.multiple_solutions = None
         self.selected_solution = None
         self.data = data
@@ -287,8 +290,6 @@ class BPV:
             self.solution_time = timeit.timeit(self.solver,number=1)
         else:
             self.solver()
-
-
 
     def pprint_solution(self):
         if self.solved == True:
@@ -372,8 +373,9 @@ class BPV:
                 else:
                     break
 
+
     def write_cplex_lp(self,filepath):
-        """Uses PuLP .writeLP method to write the method to filepath in CPLEX LP format"""
+        """Uses PuLP .writeLP method to write the method to filepath in CPLEX LP format."""
 
         pulp_instance = pulp.LpProblem(" (BPV) ",pulp.LpMaximize)
         
@@ -399,6 +401,38 @@ class BPV:
         pulp_instance.writeLP(filepath)
 
 
+    def glpk_solver(self):
+        """Makes an external call to glpsol to calculate solution"""
+
+        tfile1 = named_tmp(delete=False, prefix='BPV-', suffix='.lp')
+        tfile1_name = tfile1.name
+        tfile1.close()
+        self.write_cplex_lp(tfile1_name)
+
+        tfile2 = named_tmp(delete=False, prefix='BPV-', suffix='.out')
+        tfile2_name = tfile2.name
+        tfile2.close()        
+        os.system('glpsol --lp {0} --write {1}'.format(tfile1_name,tfile2_name))
+        solution = pd.read_table(tfile2_name, skiprows=4,dtype='bool', header=None)
+        os.remove(tfile1_name)
+        os.remove(tfile2_name)
+
+        #PuLP orders variables lexicographically, thus we need to restore the correct order
+        string_numbers = []
+        for i in range(len(self.data.df)):
+            string_numbers.append(str(i))
+        string_numbers.sort()
+        for i in range(len(self.data.df)):
+            string_numbers[i] = int(string_numbers[i])
+        solution['string_numbers'] = string_numbers
+        solution.set_index(solution['string_numbers'],inplace=True)
+
+        self.data.df['glpk'] = solution
+        self.solution = self.data.df[self.data.df['glpk'] == True]
+        self.solution_entropy = self.solution['plog1onp'].sum()
+        self.solution_rate = self.solution['p'].sum()
+        self.solution_cardinality = len(self.solution)
+        self.solved = True
         
     def pulp_solver(self):
         """Uses PuLP to calculate [one] pulp solution"""

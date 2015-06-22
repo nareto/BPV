@@ -424,9 +424,8 @@ class BPV:
         string_numbers.sort()
         for i in range(len(self.data.df)):
             string_numbers[i] = int(string_numbers[i])
-        solution['string_numbers'] = string_numbers
-        solution.set_index(solution['string_numbers'],inplace=True)
 
+        solution.set_index(pd.Index(string_numbers),inplace=True)
         self.data.df['glpk'] = solution
         self.solution = self.data.df[self.data.df['glpk'] == True]
         self.solution_entropy = self.solution['plog1onp'].sum()

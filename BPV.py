@@ -423,7 +423,7 @@ class BPV:
         i-th greatest value of sampled_heuristic_cost."""
 
         def heuristic_unitary_cost(value):
-            num = -value*np.log2(value)
+            num = -value*np.log(value)
             den = max(1/self.max_cardinality, value/self.max_rate)
             return num/den
 

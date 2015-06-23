@@ -28,6 +28,94 @@ def distance1(pdseries1,pdseries2):
             sup = candidate
     return(sup)
 
+def distance_solutions(sol1, sol2):
+    """Returns a tuple (sup,argsup) of the solution distance.\
+
+    sol1 and sol2 must be a boolean array, typically Data.df['solvername']"""
+    
+    sup = 0
+    argsup = -1
+    i = 0
+    for value1 in sol1:
+        num = sol1[i] - sol2[i]
+        if num == 0:
+            i+=1
+            continue
+        else:
+            den = 1
+            for value2 in sol2:
+                den += value1 - value2
+            value1dist = num/den
+            if value1dist > sup:
+                sup = value1dist
+                argsup = i
+            i+=1
+    return(sup,argsup)
+    
+
+def not_interval_measure(int_succession):
+    """Returns a real number in [0,1], measuring by how much the given succesion is not an interval"""
+
+    index_s = pd.Series(int_succession, dtype='int')
+    index_s.sort()
+    index_s.drop_duplicates(inplace=True)
+    possible_holes = index_s.max() - index_s.min() - 1
+    nholes = (index_s.max() - index_s.min() + 1) - len(index_s)
+    return(nholes/possible_holes)
+
+def relative_error(approximated_instance, exact_instance):
+    """Returns the relative error made by approximated_instance with respect to exact_instance"""
+    
+    if approximated_instance.solved and exact_instance.solved:
+        return abs((exact_instance.solution_entropy - approximated_instance.solution_entropy)/exact_instance.solution_entropy)
+
+def check_compatible_instances(*BPV_instances):
+    """Returns True if all the BPV instances share the same (==) inputs, False otherwise"""
+
+    attributes = [(x.tot_patterns,x.max_cardinality,x.max_rate,x.data) for x in BPV_instances]
+    try:
+         iterator = iter(attributes)
+         first = next(iterator)
+         return all(first == rest for rest in iterator)
+    except StopIteration:
+         return True
+
+def print_comparison_table(*BPV_instances):
+    """Prints table comparing solutions"""
+
+    if check_compatible_instances(*BPV_instances) == False:
+        print("ERROR: incompatible instances")
+    else:
+        exact_instance = None
+        for instance in BPV_instances:
+            if instance.solver() == "exact":
+                exact_instance = instance
+        tmpinst = BPV_instances[0]
+        tot_patterns,max_cardinality,max_rate = (tmpinst.tot_patterns, tmpinst.max_cardinality, tmpinst.max_rate)
+        print("tot_patterns = %d \nmax_cardinality = %d \nmax_rate = %f" % (tot_patterns,max_cardinality,max_rate))
+
+        columns = ["", "Cardinality", "Rate", "Entropy"]
+        if exact_instance != None:
+            columns.append("Relative Error")
+        rows = []
+        for instance in BPV_instances:
+            if instance.solved:
+                row = [instance.solver(), instance.solution_cardinality(), instance.solution_rate(), instance.solution_entropy()]
+                if exact_instance != None:
+                    row.append(relative_error(instance, exact_instance))
+                rows.append(row)
+
+        column_format = "|{:<20}|{:<12}|{:<12}|{:<12}|"
+        row_format = "|{:<20}|{:<12d}|{:<12.8f}|{:<12.8f}|"
+        if exact_instance != None:
+            column_format += "{:<25}"
+            row_format += "{:<25.12f}"
+
+        print(column_format.format(*columns))
+        for r in rows:
+            print(row_format.format(*r))
+
+            
 def solution_strings(*BPV_instances):
     """Returns list of the names of boolean solution columns"""
     
@@ -170,86 +258,7 @@ class Data():
         data_head.df["p"] /= sum
         data_head.df["plog1onp"] = data_head.df["p"]*np.log(1/data_head.df["p"])
         return(data_head)
-
             
-        
-def distance_solutions(sol1, sol2):
-    """Returns a tuple (sup,argsup) of the solution distance.\
-
-    sol1 and sol2 must be a boolean array, typically Data.df['solvername']"""
-    
-    sup = 0
-    argsup = -1
-    i = 0
-    for value1 in sol1:
-        num = sol1[i] - sol2[i]
-        if num == 0:
-            i+=1
-            continue
-        else:
-            den = 1
-            for value2 in sol2:
-                den += value1 - value2
-            value1dist = num/den
-            if value1dist > sup:
-                sup = value1dist
-                argsup = i
-            i+=1
-    return(sup,argsup)
-    
-    
-def relative_error(approximated_instance, exact_instance):
-    """Returns the relative error made by approximated_instance with respect to exact_instance"""
-    
-    if approximated_instance.solved and exact_instance.solved:
-        return abs((exact_instance.solution_entropy - approximated_instance.solution_entropy)/exact_instance.solution_entropy)
-
-def check_compatible_instances(*BPV_instances):
-    """Returns True if all the BPV instances share the same (==) inputs, False otherwise"""
-
-    attributes = [(x.tot_patterns,x.max_cardinality,x.max_rate,x.data) for x in BPV_instances]
-    try:
-         iterator = iter(attributes)
-         first = next(iterator)
-         return all(first == rest for rest in iterator)
-    except StopIteration:
-         return True
-
-def print_comparison_table(*BPV_instances):
-    """Prints table comparing solutions"""
-
-    if check_compatible_instances(*BPV_instances) == False:
-        print("ERROR: incompatible instances")
-    else:
-        exact_instance = None
-        for instance in BPV_instances:
-            if instance.solver() == "exact":
-                exact_instance = instance
-        tmpinst = BPV_instances[0]
-        tot_patterns,max_cardinality,max_rate = (tmpinst.tot_patterns, tmpinst.max_cardinality, tmpinst.max_rate)
-        print("tot_patterns = %d \nmax_cardinality = %d \nmax_rate = %f" % (tot_patterns,max_cardinality,max_rate))
-
-        columns = ["", "Cardinality", "Rate", "Entropy"]
-        if exact_instance != None:
-            columns.append("Relative Error")
-        rows = []
-        for instance in BPV_instances:
-            if instance.solved:
-                row = [instance.solver(), instance.solution_cardinality(), instance.solution_rate(), instance.solution_entropy()]
-                if exact_instance != None:
-                    row.append(relative_error(instance, exact_instance))
-                rows.append(row)
-
-        column_format = "|{:<20}|{:<12}|{:<12}|{:<12}|"
-        row_format = "|{:<20}|{:<12d}|{:<12.8f}|{:<12.8f}|"
-        if exact_instance != None:
-            column_format += "{:<25}"
-            row_format += "{:<25.12f}"
-
-        print(column_format.format(*columns))
-        for r in rows:
-            print(row_format.format(*r))
-
 class BPV:
     """Class representing an instance of BPV. There are various solver methods:\
     
@@ -312,26 +321,16 @@ class BPV:
         else:
             print("Problem not solved")
                   
-    def solution_interval_measure(self):
+    def solution_not_interval_measure(self):
         """Returns a real number in [0,1], measuring by how much the solution is not an interval"""
         
-        index = self.selected_solution
-        if index != None:
-            sol = self.solution[index]
-            name = self.solver_name + str(index)
+        if self.multiple_solutions != None:
+            name = self.solver_name + str(self.selected_solution)
         else:
-            sol = self.solution
             name = self.solver_name
-        sol.sort_index(by="p",inplace=True,ascending=False)
-        sol.sort_index(by="p",ascending=True,inplace=True)
-        idx = pd.Index([j for j in range(len(sol))])
-        sol.set_index(idx,inplace=True)
-
-        solution = self.data.df[self.data.df[name] != 0]
-        minidx = solution.index.min()
-        maxidx = solution.index.max()
-        holes = self.data.df[self.data.df[name] == 0].ix[minidx:maxidx]
-        return(0.5*len(holes)/(maxidx - minidx))
+            
+        solution = self.data.df[self.data.df[name] != 0].index
+        return(not_interval_measure(solution))
 
     def paths_list(self,starting_node,rec_level=0,solutions_list=None,first_choice=None,multiple_solutions = None,sol_list_index=0):
         """Returns list of paths that end in node"""

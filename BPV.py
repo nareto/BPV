@@ -310,9 +310,10 @@ class BPV:
                 print("\n{0} equivalent solutions found".format(self.multiple_solutions))
                 i = 0
                 for sol in self.solution:
+                    #ipdb.set_trace()
                     self.selected_solution = i
-                    print("\n Solution {0} Interval Measure = ".format(i),\
-                          self.solution_interval_measure())
+                    print("\n Solution {0} not_interval_measure = ".format(i),\
+                          self.solution_not_interval_measure())
                     i+=1
             #else:
             #    print("\n\n", self.data.df[self.data.df[self.solver_name] == 1])
@@ -332,8 +333,8 @@ class BPV:
         solution = self.data.df[self.data.df[name] != 0].index
         return(not_interval_measure(solution))
 
-    def paths_list(self,starting_node,rec_level=0,solutions_list=None,first_choice=None,multiple_solutions = None,sol_list_index=0):
-        """Returns list of paths that end in node"""
+    def paths_list(self,starting_node,rec_level=0,solutions_list=None,first_choice=None,sol_list_index=0):
+        """Returns list of paths that end in starting_node"""
 
         if rec_level == 0:
             solutions_list = [[]]
@@ -346,15 +347,15 @@ class BPV:
             elif first_choice == 1:
                 next_node = self.predecessor[cur_node][1]
             elif cur_node != self.decgraph_root and len(self.predecessor[cur_node]) > 1:
-                if multiple_solutions == None:
-                    multiple_solutions = 2
+                if self.multiple_solutions == None:
+                    self.multiple_solutions = 2
                 else:
-                    multiple_solutions += 1
+                    self.multiple_solutions += 1
                 indexes2 = indexes.copy()
                 solutions_list.append(indexes2)
                 indexes2_index = len(solutions_list) - 1 
-                self.paths_list(cur_node,rec_level+1,solutions_list,0,multiple_solutions,sol_list_index)
-                self.paths_list(cur_node,rec_level+1,solutions_list, 1,multiple_solutions,indexes2_index)
+                self.paths_list(cur_node,rec_level+1,solutions_list,0,sol_list_index)
+                self.paths_list(cur_node,rec_level+1,solutions_list, 1,indexes2_index)
                 if rec_level > 0:
                     break
                 else:
@@ -367,7 +368,7 @@ class BPV:
                 first_choice = None
                 cur_node = next_node
             else: #cur_node == self.decgraph_root or cur_node[1] == 0
-                if multiple_solutions == None:
+                if self.multiple_solutions == None:
                     return(solutions_list)
                 else:
                     break

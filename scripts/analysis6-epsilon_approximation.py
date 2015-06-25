@@ -5,16 +5,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import ipdb
 
-#n = 200
-N=50
-W=0.0025
+n = 50
+N=5
+W=0.025
 epsilon = 0.9
 
 df = BPV.Data()
 df.read_csv("p.delviva.csv",False)
 df.df.sort_index(by="p",inplace=True,ascending=False)
 df.df.set_index(pd.Index([j for j in range(len(df.df))]), inplace=True)
-#df = df.data_head(n)
+df = df.data_head(n)
 
 #p = np.zeros(2*n)
 #for i in range(2*n):
@@ -33,14 +33,21 @@ df.df['quantized_plog1onp'] = df.df['plog1onp'].apply(scaler)
 prbl_pulp = BPV.BPV("pulp",df,N,W,time_solver=False)
 prbl_pulp.solve()
 prbl_pulp.pprint_solution()
+
+prbl_decW = BPV.BPV("decgraphH",df,N,W,time_solver=False,use_quantized_entropy=True)
+prbl_decW.solve()
+#cProfile.run('prbl.solve()',sort=1)
+prbl_decW.pprint_solution()
+
 prbl_decW = BPV.BPV("decgraphW",df,N,W,time_solver=False,use_quantized_entropy=True)
 prbl_decW.solve()
 #cProfile.run('prbl.solve()',sort=1)
 prbl_decW.pprint_solution()
-print("\n\n Relative Erorr = ",BPV.relative_error(prbl_decW,prbl_pulp))
+#print("\n\n Relative Erorr = ",BPV.relative_error(prbl_decW,prbl_pulp))
+print("\n\n\n", prbl_decW.multiple_solutions)
 
 sol_view = BPV.solution_non_zero_view(prbl_pulp, prbl_decW)
-print(sol_view)
+#print(sol_view)
 #print(df.df)
 #pulp_indexes = df.df[df.df['pulp'] == True].index
 #decgraphW_indexes = df.df[df.df['decgraphW'] == True].index

@@ -577,7 +577,9 @@ class BPV:
                     self.next_nodes_dict[child] = candidate_new_entropy
                 if self.next_nodes_dict[child] > self.decgraph_best_value:
                     self.decgraph_best_value = self.next_nodes_dict[child]
-                    self.decgraph_best_value_node = child
+                    self.decgraph_best_value_node = [child]
+                elif self.next_nodes_dict[child] > self.decgraph_best_value:
+                    self.decgraph_best_value_node.append(child)
 
         #main loop
         while self.cur_nodes_dict.keys():
@@ -602,7 +604,10 @@ class BPV:
             self.solution = [None]
         else:
             self.solved = True
-            self.solutions_indexes_list = self.paths_list(self.decgraph_best_value_node)
+            self.solutions_indexes_list = []
+            for bn in self.decgraph_best_value_node:
+                for sol in self.paths_list(bn):
+                    self.solutions_indexes_list.append(sol)
             self.solution_cardinality = 0
             self.solution_rate = 0
             self.solution_entropy = 0
@@ -691,8 +696,10 @@ class BPV:
                     self.next_nodes_dict[child] = candidate_new_rate
                 if child[1] > self.decgraph_best_value:
                     self.decgraph_best_value = child[1]
-                    self.decgraph_best_value_node = child
-            
+                    self.decgraph_best_value_node = [child]
+                elif child[1] == self.decgraph_best_value:
+                    self.decgraph_best_value_node.append(child)
+                    
         #main loop
         while self.cur_nodes_dict.keys():
             cur,alpha = self.cur_nodes_dict.popitem()
@@ -717,7 +724,10 @@ class BPV:
             self.solution = [None]
         else:
             self.solved = True
-            self.solutions_indexes_list = self.paths_list(self.decgraph_best_value_node)
+            self.solutions_indexes_list = []
+            for bn in self.decgraph_best_value_node:
+                for sol in self.paths_list(bn):
+                    self.solutions_indexes_list.append(sol)
             self.solution_cardinality = 0
             self.solution_rate = 0
             self.solution_entropy = 0

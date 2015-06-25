@@ -25,10 +25,11 @@ df.df['plog1onp'] = df.df['p']*np.log(1/df.df['p'])
 df.df.sort_index(by='p',inplace=True,ascending=False)
 df.df.set_index(pd.Index([j for j in range(len(df.df))]), inplace=True)
 
-prbl_decH = BPV.BPV("decgraphH",df,N,W,time_solver=False)
-prbl_decH.solve()
+prbl_decW = BPV.BPV("decgraphW",df,N,W,time_solver=False)
+prbl_decW.solve()
 #cProfile.run('prbl.solve()',sort=1)
-prbl_decH.pprint_solution()
+prbl_decW.pprint_solution()
+print("\n\n", prbl_decW.multiple_solutions, "\n\n")
 
 #prbl = BPV.BPV("glpk",df,N,W,time_solver=False)
 #prbl.solve()
@@ -39,4 +40,4 @@ prbl.solve()
 prbl.pprint_solution()
 
 #print(df.df)
-#print("\n\n", prbl_decH.multiple_solutions, "\n\n")
+

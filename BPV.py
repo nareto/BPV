@@ -244,6 +244,8 @@ class Data():
         self.df = pd.read_csv(csvfile,header=None,names=["pattern-string","p"])
         self.calculate_entropy()
         if not binary:
+            minus1 = lambda x: int(x) - 1
+            self.df["pattern-string"] = self.df["pattern-string"].map(minus1)            
             self.df["pattern-string"] = self.df["pattern-string"].map(dec_to_bin)
         s2p = lambda x: pm.string2pattern(x,(3,3))
         self.df['pattern-matrix'] = self.df['pattern-string'].apply(s2p)

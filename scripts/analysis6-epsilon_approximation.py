@@ -11,7 +11,7 @@ W=0.025
 epsilon = 1000
 
 df = BPV.Data()
-df.read_csv("p.delviva.csv",False)
+df.read_csv("pixel.dist.csv",False)
 df.df.sort_index(by="p",inplace=True,ascending=False)
 df.df.set_index(pd.Index([j for j in range(len(df.df))]), inplace=True)
 df = df.data_head(n)

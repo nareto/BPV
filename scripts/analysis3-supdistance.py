@@ -10,7 +10,7 @@ N=5
 W=0.025
 
 data = BPV.Data()
-data.read_csv("p.delviva.csv",False)
+data.read_csv("pixel.dist.csv",False)
 data.df.sort_index(by="p",inplace=True,ascending=False)
 data.df.set_index(pd.Index([j for j in range(len(data.df))]), inplace=True)
 dftmp = data.data_head(n).df

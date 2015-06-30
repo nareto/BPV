@@ -10,7 +10,7 @@ N=20
 W=0.03  #rate
 
 data = BPV.Data()
-data.read_csv("p.delviva.csv",False)
+data.read_csv("pixel.dist.csv",False)
 data.df.sort_index(by="p",inplace=True,ascending=True)
 data.df.set_index(pd.Index([j for j in range(len(data.df))]), inplace=True)
 data_head = data.data_head(n)

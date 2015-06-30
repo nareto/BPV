@@ -11,7 +11,7 @@ import pandas as pd
 
 
 df = BPV.Data()
-df.read_csv("p.delviva.csv",False)
+df.read_csv("pixel.dist.csv",False)
 df.df.sort_index(by="p",inplace=True,ascending=True)
 df.df.set_index(pd.Index([j for j in range(len(df.df))]), inplace=True)
 

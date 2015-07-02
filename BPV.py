@@ -236,26 +236,27 @@ class Data():
     def calculate_entropy(self):
         self.df["plog1onp"] = self.df["p"]*np.log(1/self.df["p"])
         
-    def read_csv(self,csvfile, binary=True):
-        """Reads a CSV with columns: pattern-string,p\
+    def read_csv(self,csvfile, binary=True, binarystrings=True):
+        """Reads a CSV with columns: pattern-id,p\
 
-        pattern-string can either be binary or decimal, in which case  'binary' must be set to False"""
-        
-        self.df = pd.read_csv(csvfile,header=None,names=["pattern-string","p"])
+        if binarystrings is True, pattern-id is supposed to be a binary number, which can either be binary or its decimal representation. In the latter case  'binary' must be set to False"""
+
+        self.df = pd.read_csv(csvfile,header=None,names=["pattern-id","p"])
         self.calculate_entropy()
-        if not binary:
-            minus1 = lambda x: int(x) - 1
-            self.df["pattern-string"] = self.df["pattern-string"].map(minus1)            
-            self.df["pattern-string"] = self.df["pattern-string"].map(dec_to_bin)
-        s2p = lambda x: pm.string2pattern(x,(3,3))
-        self.df['pattern-matrix'] = self.df['pattern-string'].apply(s2p)
-        self.df = self.df.reindex_axis(['pattern-string','pattern-matrix','p','plog1onp'],axis=1)
+        if binarystrings:
+            if not binary:
+                minus1 = lambda x: int(x) - 1
+                self.df["pattern-id"] = self.df["pattern-id"].map(minus1)            
+                self.df["pattern-id"] = self.df["pattern-id"].map(dec_to_bin)
+            s2p = lambda x: pm.string2pattern(x,(3,3))
+            self.df['pattern-matrix'] = self.df['pattern-id'].apply(s2p)
+            self.df = self.df.reindex_axis(['pattern-id','pattern-matrix','p','plog1onp'],axis=1)
         #return(self.df)
 
     def data_head(self,rows=10):
         """Returns a DataFrame copy of the first rows rows of self.df, renormalizing vector p"""
 
-        data_head = Data(pd.DataFrame(self.df[["pattern-string","p"]][:rows].copy()))
+        data_head = Data(pd.DataFrame(self.df[["pattern-id","p"]][:rows].copy()))
         sum  = data_head.df["p"].sum()
         data_head.df["p"] /= sum
         data_head.df["plog1onp"] = data_head.df["p"]*np.log(1/data_head.df["p"])

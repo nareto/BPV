@@ -255,13 +255,19 @@ class Data():
 
     def data_head(self,rows=10):
         """Returns a DataFrame copy of the first rows rows of self.df, renormalizing vector p"""
-
-        data_head = Data(pd.DataFrame(self.df[["pattern-id","p"]][:rows].copy()))
+        tmpdf = self.df.copy()
+        tmpdf.sort_index(by="p",inplace=True,ascending=False)
+        data_head = Data(pd.DataFrame(tmpdf[["pattern-id","p"]][:rows].copy()))
         sum  = data_head.df["p"].sum()
         data_head.df["p"] /= sum
         data_head.df["plog1onp"] = data_head.df["p"]*np.log(1/data_head.df["p"])
         return(data_head)
-            
+
+    def order_by_p(self,ascending_order=True,reindex=True):
+        self.df.sort_index(by="p",inplace=True,ascending=ascending_order)
+        if reindex:
+            self.df.set_index(pd.Index([j for j in range(len(self.df))]), inplace=True)
+        
 class BPV:
     """Class representing an instance of BPV. There are various solver methods:\
     

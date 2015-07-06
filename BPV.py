@@ -267,7 +267,16 @@ class Data():
         self.df.sort_index(by="p",inplace=True,ascending=ascending_order)
         if reindex:
             self.df.set_index(pd.Index([j for j in range(len(self.df))]), inplace=True)
-        
+
+    def quantize_entropy(self, max_patterns, epsilon):
+        colname = 'quantized_plog1onp'
+        if colname in self.df.columns:
+            del self.df[colname]
+        min_entropy = self.df['plog1onp'].min()
+        c = 2*max_patterns/(epsilon*min_entropy)
+        scaler = lambda x: (1/c)*(int(c*x) + 1)
+        self.df[colname] = self.df['plog1onp'].apply(scaler)
+
 class BPV:
     """Class representing an instance of BPV. There are various solver methods:\
     
@@ -597,8 +606,10 @@ class BPV:
             if k+1 < self.tot_patterns and\
                alpha + reverse_cumulative_plog1onp[k] >= self.decgraph_best_value and\
                mu + p[k+1] <= self.max_rate and nu + 1 <= self.max_cardinality:
-                add_child(cur, 1, alpha)
                 add_child(cur, 2, alpha)
+                add_child(cur, 1, alpha)
+                #if not self.suppose_interval:
+                #    add_child(cur, 1, alpha)
             if not self.cur_nodes_dict.keys() and k < self.tot_patterns -1:
                 l = len(self.next_nodes_dict.keys())
                 self.decgraph_len_visitlist.append(l)

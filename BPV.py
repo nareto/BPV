@@ -257,7 +257,10 @@ class Data():
         """Returns a DataFrame copy of the first rows rows of self.df, renormalizing vector p"""
         tmpdf = self.df.copy()
         tmpdf.sort_index(by="p",inplace=True,ascending=False)
-        data_head = Data(pd.DataFrame(tmpdf[["pattern-id","p"]][:rows].copy()))
+        idx = pd.Series(tmpdf.index[:rows])
+        idx.sort(inplace=True)
+        idx = pd.Index(idx)
+        data_head = Data(pd.DataFrame(self.df.ix[idx].copy()))        
         sum  = data_head.df["p"].sum()
         data_head.df["p"] /= sum
         data_head.df["plog1onp"] = data_head.df["p"]*np.log(1/data_head.df["p"])

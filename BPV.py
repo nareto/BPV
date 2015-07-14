@@ -234,7 +234,7 @@ class Data():
         return(new_df)
 
     def calculate_entropy(self):
-        self.df["plog1onp"] = self.df["p"]*np.log(1/self.df["p"])
+        self.df["plog1onp"] = self.df["p"]*np.log2(1/self.df["p"])
         
     def read_csv(self,csvfile, binary=True, binarystrings=True):
         """Reads a CSV with columns: pattern-id,p\
@@ -253,19 +253,21 @@ class Data():
             self.df = self.df.reindex_axis(['pattern-id','pattern-matrix','p','plog1onp'],axis=1)
         #return(self.df)
 
-    def data_head(self,rows=10):
+    def data_head(self,rows=10,most_probable=False):
         """Returns a DataFrame copy of the first rows rows of self.df, renormalizing vector p"""
         
         tmpdf = self.df.copy()
-        ####tmpdf.sort_index(by="p",inplace=True,ascending=False)
-        #idx = pd.Series(tmpdf.index[:rows])
-        #idx.sort(inplace=True)
-        #idx = pd.Index(idx)
-        #data_head = Data(pd.DataFrame(self.df.ix[idx].copy()))
-        data_head = Data(pd.DataFrame(self.df.ix[:rows].copy()))        
+        if most_probable:
+            tmpdf.sort_index(by="p",inplace=True,ascending=False)
+            idx = pd.Series(tmpdf.index[:rows])
+            idx.sort(inplace=True)
+            idx = pd.Index(idx)
+            data_head = Data(pd.DataFrame(self.df.ix[idx].copy()))
+        else:
+            data_head = Data(pd.DataFrame(self.df.ix[:rows].copy()))        
         sum  = data_head.df["p"].sum()
         data_head.df["p"] /= sum
-        data_head.df["plog1onp"] = data_head.df["p"]*np.log(1/data_head.df["p"])
+        data_head.df["plog1onp"] = data_head.df["p"]*np.log2(1/data_head.df["p"])
         return(data_head)
 
     def order_by_p(self,ascending_order=True,reindex=True):
@@ -322,6 +324,16 @@ class BPV:
             self.solution_time = timeit.timeit(self.solver,number=1)
         else:
             self.solver()
+
+    def recalculate_solution_attributes(self):
+        self.solution_cardinality = 0
+        self.solution_rate = 0
+        self.solution_entropy = 0
+        for idx in self.solutions_indexes_list[0]:
+            p = self.data.df['p'][idx]
+            self.solution_cardinality += 1
+            self.solution_rate += p
+            self.solution_entropy += p*np.log2(1/p)
 
     def pprint_solution(self):
         if self.solved == True:
@@ -504,7 +516,8 @@ class BPV:
         We use the trivial method, which is O(self.max_cardinality*self.tot_patterns), to find the greatest values of f, checking
         on every iteration for the constraints to be respected. For the i-th greatest value of
         sampled_heuristic_cost we store it's index in self.solution_indexes[i], i.e. sampled_heuristic_cost[self.solution_indexes[i]] is the
-        i-th greatest value of sampled_heuristic_cost."""
+        i-th greatest val
+ue of sampled_heuristic_cost."""
 
         def heuristic_unitary_cost(value):
             num = -value*np.log2(value)

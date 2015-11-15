@@ -3,13 +3,13 @@ from PIL import Image
 import numpy as np
 from pandas import Series
 import sys, os, shutil
-
+import ipdb
 
 def usage():
     print("USAGE: {0} command args\
     \nwhere \"command args\" is one of the following:\
     \n\ndigitize_dir dir outdir - recursively digitize images in dir and save them in outdir, preserving the directory tree structure\
-    \n\ndistribution dir width height outfile - saves to outfile the distribution of width x height patterns in dir (recursive)")
+    \n\ndistribution dir patternsize outfile - saves to outfile the distribution of patternsize x patternsize patterns in dir (recursive)")
 
 def pad_zeros(bit_string, length):
     while(len(bit_string)<length):
@@ -33,14 +33,15 @@ def pattern2string(pattern):
             string += str(pattern[(row,col)])
     return(string)
 
-def img2pattern(img):
+def img2pattern(img,maxv):
     w,h = img.size
     pattern = np.zeros((w,h),dtype='int')
-    data = img.getdata()
-    for row in range(h):
-        for col in range(w):
-            v = data[w*row + col]
-            if int(v) == 255:
+    data = np.array(img)
+    for row in range(int(h)):
+        for col in range(int(w)):
+            #v = data[w*row + col]
+            v = data[row,col]
+            if v > maxv/2:
                 pattern[(row,col)] = 1
     return(pattern)
     
@@ -67,7 +68,8 @@ def digitize_image(img_path):
     average_lum = 0
     for pixel in data:
         r,g,b = pixel
-        pixel_lum = 0.2989*r + 0.5870*g + 0.1140*b
+        #pixel_lum = 0.2989*r + 0.5870*g + 0.1140*b
+        pixel_lum = r + g + b
         lum.append(pixel_lum)
         average_lum += pixel_lum
     average_lum *= 1/npixels
@@ -104,8 +106,10 @@ def digitize_directory_tree(dir_tree,outdir):
 
                     
 
-def distribution(dir_tree,pattern_shape):
-    w,h = pattern_shape
+def distribution(dir_tree,psize,maxfiles=None):
+    #w,h = pattern_shape
+    if psize % 2 == 0:
+        raise RuntimeError("Pattern size must be odd")
     patterns = {}
     n_samples = 0
     n_images = 0
@@ -116,23 +120,42 @@ def distribution(dir_tree,pattern_shape):
     counter = 1
     for root,dirs,files in os.walk(dir_tree):
         for f in files:
-            if f[-4:] == '.jpg':
+            if f[-4:] == '.jpg' and (maxfiles == None or counter <= maxfiles):
                 imname = root+'/'+f
                 im = Image.open(imname)
                 if im.mode != 'L':
                     print("Image must be in binary format")
-                    exit(1)
+                    sys.exit(1)
                 print("Analyzing: [{0}/{1}] {2}".format(counter,n_images,imname))
                 width,height = im.size
-                #ipdb.set_trace()
-                hi = int((height - (height % h))/h)
-                wi = int((width - (width % w))/w)
-                for i in range(hi*wi):
-                    row = int((i - (i % wi))/wi)
-                    col = i%wi
-                    rect = (w*col,h*row,w*(col + 1), h*(row + 1))
-                    pattern = im.crop(rect)
-                    string=pattern2string(img2pattern(pattern))
+                #WITHOUT OVERLAP:
+                #hi = int((height - (height % h))/h)
+                #wi = int((width - (width % w))/w)
+                #for i in range(hi*wi):
+                #    row = int((i - (i % wi))/wi)
+                #    col = i%wi
+                #    rect = (w*col,h*row,w*(col + 1), h*(row + 1))
+                #    pattern = im.crop(rect)
+                #    string=pattern2string(img2pattern(pattern))
+                #    if string in patterns.keys():
+                #        patterns[string] += 1
+                #    else:
+                #        patterns[string] = 1
+                #    n_samples += 1
+
+                #WITH OVERLAP:
+                maxv = np.array(im).max()
+                offset = int((psize-1)/2)
+                center = (offset,offset)
+                for i in range(int((width - 2*offset)*(height - 2*offset))):
+                    row = int(offset + int(i/(width - 2*offset)))
+                    col = int(offset + (i%(width - 2*offset)))
+                    box = (col - offset,row - offset, col + offset + 1, row + offset + 1)
+                    #if counter == 1:
+                    #    print(box)
+                    #ipdb.set_trace()
+                    crop_img = im.crop(box)
+                    string=pattern2string(img2pattern(crop_img,maxv))
                     if string in patterns.keys():
                         patterns[string] += 1
                     else:
@@ -154,12 +177,13 @@ if __name__ == '__main__':
         cmd = sys.argv[1]
         if cmd == "digitize_dir":
             digitize_directory_tree(sys.argv[2].rstrip('/'),sys.argv[3].rstrip('/'))
-        elif cmd == "distribution" and len(sys.argv) == 6:
-            dir, w, h, outfile = sys.argv[2:]
+        elif cmd == "distribution" and len(sys.argv) == 5:
+            dir, psize, outfile = sys.argv[2:]
             out = open(outfile,'w')
-            dist = distribution(dir, (int(w),int(h)))
-            sorted_dist = sorted(dist, key=dist.get, reverse=True)
-            for k in sorted_dist:
+            dist = distribution(dir, int(psize), 3)
+            #sorted_dist = sorted(dist, key=dist.get, reverse=True)
+            #for k in sorted_dist:
+            for k in dist:
                 out.write(k + "," + str(dist[k]) + "\n")
             out.close()
         else:
